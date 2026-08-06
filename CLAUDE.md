@@ -220,6 +220,9 @@ All synthesized via Web Audio API — no audio files needed.
 - [x] Card-reveal loading screen (3D flip animation, replaces dead wait)
 
 ### Medium Priority (polish)
+- [x] Fix difficulty classifier — filter non-acting credits, key on `media_type:id`, sort by `vote_count` (2026-08-06)
+- [ ] Make Hard mode reliable — still ~1 in 14 pairs, so it usually exhausts the 8 attempts and hits the silent unverified fallback. Needs BFS with caching.
+- [ ] Add an `eslint.config.js` — eslint 10 is installed but linting never runs
 - [ ] Update accent color on difficulty selection (not just on game start)
 - [ ] Increase `--color-text-secondary` to `#8A8A8A`+ for WCAG AA contrast
 - [ ] Add error/invalid sound for failed validation
@@ -242,9 +245,20 @@ Before ending any session:
 3. If any features are partially complete, describe what's left
 
 ## Current State
-_Updated by Claude — 2026-02-10 (Session 3)_
-- **Last worked on:** Share route handler, batch usability fixes, card-reveal loading screen
+_Updated by Claude — 2026-08-06 (Session 4)_
+- **Last worked on:** Shipping the stalled reveal screen, then fixing the difficulty classifier
+- **Live:** https://six-degrees-topaz.vercel.app — both commits deployed and verified in production
 - **This session completed:**
+  - Committed and shipped `RevealScreen` (`7c37b34`) — it had sat uncommitted since 2026-02-13 and was never deployed
+  - Fixed the difficulty classifier (`61f138f`) in `app/api/tmdb/verify-pair/route.ts`
+  - Added `.claude/launch.json` so the preview tool starts the dev server on port 3005
+- **The classifier bug (worth understanding before touching credits again):** TMDb `combined_credits` includes talk shows, awards ceremonies, documentaries and archive-footage compilations. Nearly every famous actor has been on Kimmel, and *Final Cut: Ladies and Gentlemen* (2012) is stitched from clips of thousands of films and credits every actor in them. The shared-credit check therefore matched almost any pair and returned `minSteps: 1`, making Easy over-triggered and often unsolvable while Medium/Hard almost never matched. Fix filters to real acting roles (`character` containing "self"/"archive", genres 10763/10764/10767), keys credits on `media_type:id` (movie 2034 = Training Day collided with tv 2034 = Drive), and sorts by `vote_count` before sampling since `combined_credits` is roughly chronological.
+- **Verified after the fix:** 14 random pool pairs → 4 easy / 9 medium / 1 hard (was effectively all-easy). Dinklage→Waltz 2 via Fassbender, Pugh→Blunt 1 via Oppenheimer, Stallone→Damon no longer a false easy. Played a full Easy round: Marsden→Urban, genuinely 1 step via *The Loft*.
+- **Known trap:** if all 8 pair-finding attempts miss, `RevealScreen` starts an **unverified** pair still wearing the requested difficulty label. A wrong-looking difficulty in gameplay may be this fallback, not a classifier verdict — hit `/api/tmdb/verify-pair` directly before diagnosing.
+- **Next priorities:** Hard mode is still rare (~1 in 14 pairs) so it often hits that silent fallback; a real fix needs BFS with caching. Then medium-priority polish (accent on difficulty select, WCAG contrast, error sound). ESLint 10 is installed but has no `eslint.config.js`, so linting never runs.
+
+### Session 3 (2026-02-10)
+- **Completed:**
   - Share route handler: `/play?pair=id-id&d=difficulty` with `fetchPerson()` helper, auto-start via `initialPair` prop
   - Person API route: `/api/tmdb/person` for looking up actors by TMDb ID
   - Error color fix: `--color-error` changed to `#FF6B6B` (distinct from hard-mode accent)
@@ -257,7 +271,4 @@ _Updated by Claude — 2026-02-10 (Session 3)_
   - `"revealing"` game phase + `BEGIN_REVEAL` action added to types/reducer
   - HomeScreen simplified: pair-finding moved to RevealScreen, Play button always shows "Play"
 - **Modified files:** `app/globals.css`, `app/layout.tsx`, `app/play/page.tsx` (new), `app/api/tmdb/person/route.ts` (new), `components/Game.tsx`, `components/screens/HomeScreen.tsx`, `components/screens/RevealScreen.tsx` (new), `components/screens/ResultsScreen.tsx`, `components/round/ChainBuilder.tsx`, `components/round/ChainCard.tsx`, `components/round/SearchInput.tsx`, `components/round/SearchResults.tsx`, `lib/types.ts`, `lib/game-reducer.ts`, `lib/sounds.ts`, `lib/tmdb.ts`
-- **Build status:** Dev server runs on port 3005. Deployed on Vercel (needs `TMDB_API_KEY` env var).
-- **In progress:** Fine-tuning RevealScreen slide-to-edges animation — card end positions are close but not pixel-perfect match to PlayingScreen
-- **Known issues:** `--color-text-secondary` fails WCAG AA contrast. Reveal-to-playing transition has a brief "pop" when component switches (accepted by Marco as OK).
-- **Next priorities:** Finalize reveal animation positioning, then medium-priority polish (accent on difficulty select, WCAG contrast, error sound)
+- **Open from this session:** RevealScreen slide-to-edges end positions are close but not pixel-perfect against PlayingScreen. `--color-text-secondary` fails WCAG AA contrast. Reveal-to-playing transition has a brief "pop" when the component switches (accepted by Marco as OK).
