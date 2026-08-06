@@ -2,69 +2,39 @@
 
 import { useState, useEffect } from "react";
 import { useGame } from "@/lib/GameContext";
-import { fetchActorPool, getRandomPair } from "@/lib/actor-pool";
-import { verifyPair } from "@/lib/tmdb";
-import { PoolActor, Difficulty } from "@/lib/types";
-
-const MAX_RETRIES = 8;
+import { fetchActorPool } from "@/lib/actor-pool";
+import { Difficulty } from "@/lib/types";
 
 const DIFFICULTY_CONFIG: Record<
   Difficulty,
-  { label: string; description: string; match: (minSteps: number | null) => boolean }
+  { label: string; description: string }
 > = {
   easy: {
     label: "Easy",
     description: "They share a movie",
-    match: (ms) => ms === 1,
   },
   medium: {
     label: "Medium",
     description: "One actor apart",
-    match: (ms) => ms === 2,
   },
   hard: {
     label: "Hard",
     description: "No obvious connection",
-    match: (ms) => ms === null,
   },
 };
 
 export function HomeScreen() {
   const { dispatch } = useGame();
-  const [pool, setPool] = useState<PoolActor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
 
+  // Pre-warm the actor pool cache (fire-and-forget)
   useEffect(() => {
-    fetchActorPool().then((actors) => {
-      setPool(actors);
-      setLoading(false);
-    });
+    fetchActorPool();
   }, []);
 
-  const handlePlay = async () => {
-    if (pool.length < 2) return;
-    setStarting(true);
-
-    const config = DIFFICULTY_CONFIG[difficulty];
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const pair = getRandomPair(pool);
-      const result = await verifyPair(pair.start.id, pair.end.id);
-
-      if (config.match(result.minSteps)) {
-        dispatch({ type: "START_GAME", pair, difficulty });
-        return;
-      }
-    }
-
-    // Fallback: start with whatever pair we get
-    const pair = getRandomPair(pool);
-    dispatch({ type: "START_GAME", pair, difficulty });
+  const handlePlay = () => {
+    dispatch({ type: "BEGIN_REVEAL", difficulty });
   };
-
-  const disabled = loading || starting;
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-6 md:gap-10 px-6">
@@ -120,15 +90,14 @@ export function HomeScreen() {
 
       <button
         onClick={handlePlay}
-        disabled={disabled}
-        className="px-8 md:px-10 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95 disabled:opacity-50"
+        className="px-8 md:px-10 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
         style={{
           background: "var(--color-accent)",
           color: "#fff",
           border: "none",
         }}
       >
-        {loading ? "Loading..." : starting ? "Finding pair..." : "Play"}
+        Play
       </button>
     </div>
   );

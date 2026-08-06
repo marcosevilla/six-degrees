@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { GameProvider, useGame } from "@/lib/GameContext";
 import { HomeScreen } from "@/components/screens/HomeScreen";
+import { RevealScreen } from "@/components/screens/RevealScreen";
 import { PlayingScreen } from "@/components/screens/PlayingScreen";
 import { ResultsScreen } from "@/components/screens/ResultsScreen";
 import type { ActorPair, Difficulty } from "@/lib/types";
@@ -47,6 +48,8 @@ function GameContent({ initialPair, initialDifficulty }: GameContentProps) {
   switch (state.phase) {
     case "home":
       return <HomeScreen />;
+    case "revealing":
+      return <RevealScreen />;
     case "playing":
       return <PlayingScreen />;
     case "results":

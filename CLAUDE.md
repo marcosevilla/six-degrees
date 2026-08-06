@@ -46,10 +46,14 @@ app/
     validate/route.ts           # Validate actor↔movie connection
     pool/route.ts               # Dynamic actor pool (top 200 from TMDb, filtered)
     verify-pair/route.ts        # Verify pair connectability + difficulty classification
+    person/route.ts             # Look up actor by TMDb ID (for share links)
+  play/
+    page.tsx                    # Share link landing page (/play?pair=id-id&d=difficulty)
 components/
-  Game.tsx                      # State-driven screen switcher + difficulty-based accent color
+  Game.tsx                      # State-driven screen switcher + difficulty-based accent color + share-link auto-start
   screens/
     HomeScreen.tsx              # Landing — branding + difficulty picker + play button
+    RevealScreen.tsx            # Card-reveal loading animation (pair finding + 3D card flip + slide to edges)
     PlayingScreen.tsx           # Wrapper for ChainBuilder
     ResultsScreen.tsx           # Score + completed chain + share + play again
   round/
@@ -62,10 +66,10 @@ lib/
   types.ts                      # All TypeScript types (GameState, GameAction, Difficulty, etc.)
   actor-pool.ts                 # Dynamic pool fetch + client cache, random pair generation, image helpers
   scoring.ts                    # Score calculation + formatting + labels
-  sounds.ts                     # Web Audio API synthesized sounds (card chime, win arpeggio, undo crumple)
+  sounds.ts                     # Web Audio API synthesized sounds (card chime, win arpeggio, undo crumple, card flip whoosh)
   game-reducer.ts               # useReducer: all game state transitions
   GameContext.tsx                # React Context provider
-  tmdb.ts                       # Client-side fetch helpers (search, validate, verifyPair)
+  tmdb.ts                       # Client-side fetch helpers (search, validate, verifyPair, fetchPerson)
 hooks/
   useDebounce.ts                # 300ms debounce for search
 VIRALITY-RESEARCH.md            # Game monetization + virality research (Wordle case study, growth playbook)
@@ -74,13 +78,13 @@ UI-CRITIQUE.md                  # Comprehensive UI/UX critique with prioritized 
 
 ## Game Flow
 ```
-Home (pick difficulty) → Playing (random pair, live timer) → Results (chain + score + share) → Play Again
+Home (pick difficulty) → Reveal (card flip animation) → Playing (random pair, live timer) → Results (chain + score + share) → Play Again
 ```
 
 ## State Shape
 ```typescript
 {
-  phase: "home" | "playing" | "results",
+  phase: "home" | "revealing" | "playing" | "results",
   difficulty: "easy" | "medium" | "hard" | null,
   actorPair: { start: PoolActor, end: PoolActor } | null,
   chain: ChainLink[],
@@ -133,7 +137,7 @@ Difficulty determines how connected the randomly selected pair is:
 | `--color-text-secondary` | `#666666` | Labels, secondary text |
 | `--color-accent` | Dynamic per difficulty | CTA buttons, highlights, connectors |
 | `--color-accent-rgb` | Dynamic per difficulty | For rgba() usage |
-| `--color-error` | `#E63946` | Error messages |
+| `--color-error` | `#FF6B6B` | Error messages |
 | `--color-success` | `#4ade80` | Success states |
 
 ### Difficulty-Based Accent Colors
@@ -148,7 +152,7 @@ Set dynamically via `document.documentElement.style.setProperty` in `Game.tsx`:
 ### Typography
 | Element | Font | Weight | Size | Style |
 |---------|------|--------|------|-------|
-| Body / UI | Geist Sans (`--font-geist-sans`) | 600 (global semibold) | 14-16px | Normal |
+| Body / UI | Geist Sans (`--font-geist-sans`) | 400 | 14-16px | Normal |
 | Labels | Geist Sans | 400-500 | 10-12px | Uppercase, tracked |
 | Results score label | Playfair Display (`--font-playfair`) | 700 | 3xl-4xl | Bold italic |
 
@@ -180,6 +184,18 @@ All synthesized via Web Audio API — no audio files needed.
 | `playCardSound()` | Valid media/person selected | Ascending sine chime (660→880Hz, 250ms) |
 | `playRemoveSound()` | Undo or reset | Descending triangle thud (400→180Hz) + noise burst |
 | `playWinSound()` | Target actor reached | C major arpeggio (C5-E5-G5-C6, 120ms spacing) |
+| `playFlipSound()` | Card flip during reveal | Bandpass-filtered noise burst + sine undertone (~300ms) |
+
+### Reveal Screen (`RevealScreen.tsx`)
+- **Purpose**: Replaces dead "Finding pair..." wait with cinematic card-flip reveal
+- **Phase machine**: `"loading" → "flip-left" → "flip-right" → "title" → "slide-out"`
+- **Layout mirrors ChainBuilder**: same header position (`pt-6 md:pt-12`), same flex spacers (`flex-[0.3] md:flex-[0.8]`), same bottom padding (`pb-24 md:pb-0`, `mb-20 md:mb-2`) — so cards end up in the same position as PlayingScreen
+- **Card sizing**: `min(42dvh, 50vw)` centered → shrinks to `30dvh` during slide-out (matches bookend height)
+- **3D card flip**: CSS `transform-style: preserve-3d` + `backface-visibility: hidden` + `rotateY(180deg)`
+- **Slide-to-edges**: `useLayoutEffect` calculates `translateX` deltas based on POST-SHRINK flex positions so cards land at `px-3 md:px-8` from edges (matching PlayingScreen exactly)
+- **Timeline**: +500ms flip-left, +1500ms flip-right, +2500ms title, +4500ms slide-out, +5400ms dispatch START_GAME
+- **Image preloading**: `new Image()` with `onload` callbacks before triggering flips
+- **Share links skip reveal**: `/play?pair=id-id&d=difficulty` dispatches `START_GAME` directly
 
 ### Mobile Responsiveness
 - **Target**: 390px+ (iPhone 14 and up)
@@ -195,20 +211,19 @@ All synthesized via Web Audio API — no audio files needed.
 ## Backlog
 
 ### High Priority (usability — from UI critique)
-- [ ] Sharing via URL route handler (`/play?pair=id-id` — URL is generated but no route exists)
-- [ ] Fix error color collision with hard-mode accent (both `#E63946`)
-- [ ] Add network error handling in validation (unhandled promise rejections)
-- [ ] Add clipboard copy confirmation on share
-- [ ] Remove global `font-semibold` from body (kills typographic hierarchy)
-- [ ] Add keyboard navigation to search results (arrow keys, Enter, Escape)
+- [x] Sharing via URL route handler (`/play?pair=id-id&d=difficulty`)
+- [x] Fix error color collision with hard-mode accent (`--color-error` → `#FF6B6B`)
+- [x] Add network error handling in validation (try/catch around validateConnection)
+- [x] Add clipboard copy confirmation on share ("Copied!" flash)
+- [x] Remove global `font-semibold` from body
+- [x] Add keyboard navigation to search results (arrow keys, Enter, Escape, ARIA combobox)
+- [x] Card-reveal loading screen (3D flip animation, replaces dead wait)
 
 ### Medium Priority (polish)
 - [ ] Update accent color on difficulty selection (not just on game start)
 - [ ] Increase `--color-text-secondary` to `#8A8A8A`+ for WCAG AA contrast
-- [ ] Add screen transitions between phases (crossfade or card-fan-out)
-- [ ] Reduce bob/sway animations during active play
 - [ ] Add error/invalid sound for failed validation
-- [ ] Strengthen search result hover state (currently nearly invisible)
+- [ ] Reduce bob/sway animations during active play
 
 ### Lower Priority (features + delight)
 - [ ] Async competitive mode (challenge a friend with same pair)
@@ -227,19 +242,22 @@ Before ending any session:
 3. If any features are partially complete, describe what's left
 
 ## Current State
-_Updated by Claude — 2026-02-10_
-- **Last worked on:** Dark A24 theme migration, sound effects, mobile responsiveness, UI critique
+_Updated by Claude — 2026-02-10 (Session 3)_
+- **Last worked on:** Share route handler, batch usability fixes, card-reveal loading screen
 - **This session completed:**
-  - Dark A24 palette (from Valentine's project) applied to all CSS variables
-  - Playfair Display font added for results score label
-  - Difficulty-based dynamic accent colors (green/coral/red) via Game.tsx useEffect
-  - CSS grain texture overlay restored
-  - Web Audio API sound effects (card chime, win arpeggio, undo crumple)
-  - Full mobile responsiveness pass (sticky search bar, responsive spacing, scroll hints, touch targets, reduced-motion, viewport meta)
-  - Comprehensive UI/UX critique generated (UI-CRITIQUE.md)
-  - Game virality/monetization research (VIRALITY-RESEARCH.md)
-- **Modified files:** `app/globals.css`, `app/layout.tsx`, `components/Game.tsx`, `components/screens/HomeScreen.tsx`, `components/screens/ResultsScreen.tsx`, `components/round/ChainBuilder.tsx`, `components/round/ChainDisplay.tsx`, `components/round/ChainCard.tsx`, `components/round/SearchResults.tsx`
-- **New files:** `lib/sounds.ts`, `VIRALITY-RESEARCH.md`, `UI-CRITIQUE.md`
-- **Build status:** Dev server runs on port 3005
-- **Known issues:** Error color (`#E63946`) identical to hard-mode accent. Global `font-semibold` flattens typography hierarchy. `--color-text-secondary` fails WCAG AA contrast. Share URL points to nonexistent route.
-- **Next priorities:** Share route handler (`/play?pair=id-id`), then UI critique priority fixes
+  - Share route handler: `/play?pair=id-id&d=difficulty` with `fetchPerson()` helper, auto-start via `initialPair` prop
+  - Person API route: `/api/tmdb/person` for looking up actors by TMDb ID
+  - Error color fix: `--color-error` changed to `#FF6B6B` (distinct from hard-mode accent)
+  - Network error handling: try/catch around `validateConnection` calls in ChainBuilder
+  - Clipboard copy confirmation: "Copied!" flash state on Share button in ResultsScreen
+  - Removed global `font-semibold` from body in layout.tsx
+  - Keyboard navigation on search results: arrow keys, Enter, Escape with ARIA combobox attributes
+  - Card-reveal loading screen: full `RevealScreen.tsx` with 3D card flip, whoosh sound, title reveal, slide-to-edges animation
+  - `playFlipSound()` in sounds.ts: bandpass-filtered noise + sine undertone
+  - `"revealing"` game phase + `BEGIN_REVEAL` action added to types/reducer
+  - HomeScreen simplified: pair-finding moved to RevealScreen, Play button always shows "Play"
+- **Modified files:** `app/globals.css`, `app/layout.tsx`, `app/play/page.tsx` (new), `app/api/tmdb/person/route.ts` (new), `components/Game.tsx`, `components/screens/HomeScreen.tsx`, `components/screens/RevealScreen.tsx` (new), `components/screens/ResultsScreen.tsx`, `components/round/ChainBuilder.tsx`, `components/round/ChainCard.tsx`, `components/round/SearchInput.tsx`, `components/round/SearchResults.tsx`, `lib/types.ts`, `lib/game-reducer.ts`, `lib/sounds.ts`, `lib/tmdb.ts`
+- **Build status:** Dev server runs on port 3005. Deployed on Vercel (needs `TMDB_API_KEY` env var).
+- **In progress:** Fine-tuning RevealScreen slide-to-edges animation — card end positions are close but not pixel-perfect match to PlayingScreen
+- **Known issues:** `--color-text-secondary` fails WCAG AA contrast. Reveal-to-playing transition has a brief "pop" when component switches (accepted by Marco as OK).
+- **Next priorities:** Finalize reveal animation positioning, then medium-priority polish (accent on difficulty select, WCAG contrast, error sound)

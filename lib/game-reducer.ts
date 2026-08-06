@@ -13,6 +13,13 @@ export const initialGameState: GameState = {
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
+    case "BEGIN_REVEAL":
+      return {
+        ...state,
+        phase: "revealing",
+        difficulty: action.difficulty,
+      };
+
     case "START_GAME":
       return {
         ...state,

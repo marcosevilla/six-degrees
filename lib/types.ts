@@ -64,7 +64,7 @@ export interface ChainLink {
 
 export type SearchMode = "media" | "person";
 
-export type GamePhase = "home" | "playing" | "results";
+export type GamePhase = "home" | "revealing" | "playing" | "results";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -85,6 +85,7 @@ export interface GameState {
 }
 
 export type GameAction =
+  | { type: "BEGIN_REVEAL"; difficulty: Difficulty }
   | { type: "START_GAME"; pair: ActorPair; difficulty: Difficulty }
   | { type: "SELECT_MEDIA"; media: MediaResult }
   | { type: "SELECT_PERSON"; person: PersonResult }
