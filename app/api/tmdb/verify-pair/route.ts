@@ -2,10 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
+const SAMPLE_SIZE = 10;
+
+// News, Reality, Talk
+const CHAT_SHOW_GENRES = new Set([10763, 10764, 10767]);
+
 interface CreditEntry {
   id: number;
   media_type?: string;
+  vote_count?: number;
+  character?: string;
+  genre_ids?: number[];
 }
+
+// combined_credits mixes real roles with talk-show, awards and documentary
+// appearances. Virtually every famous actor has been on Kimmel and the Oscars,
+// so keeping those makes almost any pair look like they share a credit.
+// Archive-footage compilations are the same trap: Final Cut: Ladies and
+// Gentlemen is stitched from clips of thousands of films and credits every
+// actor in them, which would link most of the pool as a single "shared movie".
+function isActingRole(c: CreditEntry): boolean {
+  const character = (c.character ?? "").toLowerCase();
+  if (character.includes("self") || character.includes("archive")) return false;
+  return !(c.genre_ids ?? []).some((g) => CHAT_SHOW_GENRES.has(g));
+}
+
+// TMDb numbers movies and TV separately, so the same integer can mean two
+// different titles (movie 2034 = Training Day, tv 2034 = Drive). Always key
+// credits on both fields or unrelated actors look like co-stars.
+const creditKey = (c: CreditEntry) => `${c.media_type ?? "movie"}:${c.id}`;
+
+// combined_credits comes back roughly chronological, so the head of the list is
+// an actor's earliest and most obscure work. Sort by vote_count first so the
+// sample below lands on the mainstream titles players actually know.
+const byReach = (a: CreditEntry, b: CreditEntry) =>
+  (b.vote_count ?? 0) - (a.vote_count ?? 0);
 
 export async function GET(request: NextRequest) {
   const apiKey = process.env.TMDB_API_KEY;
@@ -42,32 +73,33 @@ export async function GET(request: NextRequest) {
     endRes.json(),
   ]);
 
-  const startCredits: CreditEntry[] = startData.cast || [];
-  const endCredits: CreditEntry[] = endData.cast || [];
+  const startCredits: CreditEntry[] = (startData.cast || []).filter(
+    isActingRole,
+  );
+  const endCredits: CreditEntry[] = (endData.cast || []).filter(isActingRole);
 
-  // Build set of media IDs for the start actor
-  const startMediaIds = new Set(startCredits.map((c) => c.id));
+  // Build set of media keys for the start actor
+  const startMediaKeys = new Set(startCredits.map(creditKey));
 
   // Check if end actor shares any media with start actor
-  const sharedMedia = endCredits.find((c) => startMediaIds.has(c.id));
+  const sharedMedia = endCredits.find((c) => startMediaKeys.has(creditKey(c)));
 
   if (sharedMedia) {
     return NextResponse.json({ connectable: true, minSteps: 1 });
   }
 
-  // No direct shared credit — check for shared co-stars
-  // Get cast lists for start actor's top 10 most recent credits
-  const startMovieIds = startCredits.slice(0, 10).map((c) => c.id);
-  const endMovieIds = new Set(endCredits.map((c) => c.id));
+  // No direct shared credit — check for shared co-stars.
+  // Sample each actor's best-known credits; a 2-step link is only found when the
+  // bridging title falls in both samples, so ordering matters more than size.
+  const topStart = [...startCredits].sort(byReach).slice(0, SAMPLE_SIZE);
 
   // Fetch cast for start actor's movies and check if any cast member
   // also appears in any of end actor's movies
   const castResponses = await Promise.all(
-    startMovieIds.map(async (movieId) => {
-      const mediaType =
-        startCredits.find((c) => c.id === movieId)?.media_type || "movie";
+    topStart.map(async (credit) => {
+      const mediaType = credit.media_type || "movie";
       const res = await fetch(
-        `${TMDB_BASE}/${mediaType}/${movieId}/credits?api_key=${apiKey}`,
+        `${TMDB_BASE}/${mediaType}/${credit.id}/credits?api_key=${apiKey}`,
       );
       return res.json();
     }),
@@ -93,14 +125,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Fetch cast for end actor's top 10 credits
-  const endMovieSlice = endCredits.slice(0, 10).map((c) => c.id);
+  // Fetch cast for end actor's best-known credits
+  const topEnd = [...endCredits].sort(byReach).slice(0, SAMPLE_SIZE);
   const endCastResponses = await Promise.all(
-    endMovieSlice.map(async (movieId) => {
-      const mediaType =
-        endCredits.find((c) => c.id === movieId)?.media_type || "movie";
+    topEnd.map(async (credit) => {
+      const mediaType = credit.media_type || "movie";
       const res = await fetch(
-        `${TMDB_BASE}/${mediaType}/${movieId}/credits?api_key=${apiKey}`,
+        `${TMDB_BASE}/${mediaType}/${credit.id}/credits?api_key=${apiKey}`,
       );
       return res.json();
     }),
