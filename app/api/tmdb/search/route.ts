@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const TMDB_BASE = "https://api.themoviedb.org/3";
+import { TMDB_BASE, isAwardsShow, isEligibleTitle } from "@/lib/tmdb-rules";
 
 export async function GET(request: NextRequest) {
   const apiKey = process.env.TMDB_API_KEY;
@@ -52,7 +51,12 @@ export async function GET(request: NextRequest) {
     tvRes.json(),
   ]);
 
-  const movies = (movieData.results || []).map(
+  // Only offer titles that can count as a connection (no talk shows, news,
+  // reality or documentaries), so players never pick something validate rejects.
+  type Hit = { genre_ids?: number[] };
+  const eligible = (r: Hit) => isEligibleTitle(r.genre_ids);
+
+  const movies = (movieData.results || []).filter(eligible).map(
     (m: { id: number; title: string; release_date?: string; poster_path: string | null; popularity: number }) => ({
       id: m.id,
       title: m.title,
@@ -63,7 +67,9 @@ export async function GET(request: NextRequest) {
     }),
   );
 
-  const tvShows = (tvData.results || []).map(
+  const tvShows = (tvData.results || [])
+    .filter((t: Hit & { name?: string }) => eligible(t) && !isAwardsShow("tv", t.name))
+    .map(
     (t: { id: number; name: string; first_air_date?: string; poster_path: string | null; popularity: number }) => ({
       id: t.id,
       title: t.name,

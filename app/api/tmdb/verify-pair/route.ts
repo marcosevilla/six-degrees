@@ -1,42 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const TMDB_BASE = "https://api.themoviedb.org/3";
+import {
+  TMDB_BASE,
+  CastMember,
+  CreditEntry,
+  byReach,
+  castMemberActs,
+  castPath,
+  creditKey,
+  isActingRole,
+  toMediaType,
+} from "@/lib/tmdb-rules";
 
 const SAMPLE_SIZE = 10;
 
-// News, Reality, Talk
-const CHAT_SHOW_GENRES = new Set([10763, 10764, 10767]);
-
-interface CreditEntry {
-  id: number;
-  media_type?: string;
-  vote_count?: number;
-  character?: string;
-  genre_ids?: number[];
-}
-
-// combined_credits mixes real roles with talk-show, awards and documentary
-// appearances. Virtually every famous actor has been on Kimmel and the Oscars,
-// so keeping those makes almost any pair look like they share a credit.
-// Archive-footage compilations are the same trap: Final Cut: Ladies and
-// Gentlemen is stitched from clips of thousands of films and credits every
-// actor in them, which would link most of the pool as a single "shared movie".
-function isActingRole(c: CreditEntry): boolean {
-  const character = (c.character ?? "").toLowerCase();
-  if (character.includes("self") || character.includes("archive")) return false;
-  return !(c.genre_ids ?? []).some((g) => CHAT_SHOW_GENRES.has(g));
-}
-
-// TMDb numbers movies and TV separately, so the same integer can mean two
-// different titles (movie 2034 = Training Day, tv 2034 = Drive). Always key
-// credits on both fields or unrelated actors look like co-stars.
-const creditKey = (c: CreditEntry) => `${c.media_type ?? "movie"}:${c.id}`;
-
-// combined_credits comes back roughly chronological, so the head of the list is
-// an actor's earliest and most obscure work. Sort by vote_count first so the
-// sample below lands on the mainstream titles players actually know.
-const byReach = (a: CreditEntry, b: CreditEntry) =>
-  (b.vote_count ?? 0) - (a.vote_count ?? 0);
+// The acting-role rules (talk shows, awards, documentaries, archive footage)
+// and credit keying live in lib/tmdb-rules.ts, shared with validate and search.
 
 export async function GET(request: NextRequest) {
   const apiKey = process.env.TMDB_API_KEY;
@@ -97,16 +76,16 @@ export async function GET(request: NextRequest) {
   // also appears in any of end actor's movies
   const castResponses = await Promise.all(
     topStart.map(async (credit) => {
-      const mediaType = credit.media_type || "movie";
-      const res = await fetch(
-        `${TMDB_BASE}/${mediaType}/${credit.id}/credits?api_key=${apiKey}`,
-      );
-      return res.json();
+      const path = castPath(toMediaType(credit.media_type), credit.id);
+      const res = await fetch(`${TMDB_BASE}${path}?api_key=${apiKey}`);
+      const data = await res.json();
+      const cast: CastMember[] = (data.cast || []).filter(castMemberActs);
+      return { cast };
     }),
   );
 
   for (const castData of castResponses) {
-    const cast: { id: number }[] = castData.cast || [];
+    const cast = castData.cast;
     for (const member of cast) {
       // Check if this co-star has any credit in common with end actor
       // For efficiency, we just check if this co-star IS the end actor
@@ -119,7 +98,7 @@ export async function GET(request: NextRequest) {
   // Also check: do any of start's co-stars appear in end's credits?
   const startCoStarIds = new Set<number>();
   for (const castData of castResponses) {
-    const cast: { id: number }[] = castData.cast || [];
+    const cast = castData.cast;
     for (const member of cast) {
       startCoStarIds.add(member.id);
     }
@@ -129,16 +108,16 @@ export async function GET(request: NextRequest) {
   const topEnd = [...endCredits].sort(byReach).slice(0, SAMPLE_SIZE);
   const endCastResponses = await Promise.all(
     topEnd.map(async (credit) => {
-      const mediaType = credit.media_type || "movie";
-      const res = await fetch(
-        `${TMDB_BASE}/${mediaType}/${credit.id}/credits?api_key=${apiKey}`,
-      );
-      return res.json();
+      const path = castPath(toMediaType(credit.media_type), credit.id);
+      const res = await fetch(`${TMDB_BASE}${path}?api_key=${apiKey}`);
+      const data = await res.json();
+      const cast: CastMember[] = (data.cast || []).filter(castMemberActs);
+      return { cast };
     }),
   );
 
   for (const castData of endCastResponses) {
-    const cast: { id: number }[] = castData.cast || [];
+    const cast = castData.cast;
     for (const member of cast) {
       if (startCoStarIds.has(member.id)) {
         return NextResponse.json({ connectable: true, minSteps: 2 });

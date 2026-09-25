@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const TMDB_BASE = "https://api.themoviedb.org/3";
+import {
+  TMDB_BASE,
+  CastMember,
+  castMemberActs,
+  isAwardsShow,
+  isEligibleTitle,
+  toMediaType,
+} from "@/lib/tmdb-rules";
 
 export async function GET(request: NextRequest) {
   const apiKey = process.env.TMDB_API_KEY;
@@ -14,27 +20,45 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const actorId = searchParams.get("actorId");
   const mediaId = searchParams.get("mediaId");
-  const mediaType = searchParams.get("mediaType"); // "movie" | "tv"
+  const mediaTypeParam = searchParams.get("mediaType"); // "movie" | "tv"
 
-  if (!actorId || !mediaId || !mediaType) {
+  if (!actorId || !mediaId || !mediaTypeParam) {
     return NextResponse.json(
       { error: "Missing actorId, mediaId, or mediaType parameter" },
       { status: 400 }
     );
   }
 
-  // Fetch the cast for this media
-  const endpoint =
-    mediaType === "tv"
-      ? `${TMDB_BASE}/tv/${mediaId}/aggregate_credits?api_key=${apiKey}`
-      : `${TMDB_BASE}/movie/${mediaId}/credits?api_key=${apiKey}`;
+  const mediaType = toMediaType(mediaTypeParam);
+  const castKey = mediaType === "tv" ? "aggregate_credits" : "credits";
 
-  const res = await fetch(endpoint);
+  // One call returns the title's genres and its cast together.
+  const res = await fetch(
+    `${TMDB_BASE}/${mediaType}/${mediaId}?api_key=${apiKey}&append_to_response=${castKey}`,
+  );
+  if (!res.ok) {
+    return NextResponse.json(
+      { valid: false, reason: "lookup_failed" },
+      { status: 502 },
+    );
+  }
   const data = await res.json();
 
-  const cast: { id: number }[] = data.cast || [];
-  const actorIdNum = parseInt(actorId, 10);
-  const valid = cast.some((c) => c.id === actorIdNum);
+  const genreIds: number[] = (data.genres || []).map((g: { id: number }) => g.id);
+  if (!isEligibleTitle(genreIds) || isAwardsShow(mediaType, data.name)) {
+    return NextResponse.json({ valid: false, reason: "excluded_title" });
+  }
 
-  return NextResponse.json({ valid });
+  const cast: CastMember[] = data[castKey]?.cast || [];
+  const actorIdNum = parseInt(actorId, 10);
+  const member = cast.find((c) => c.id === actorIdNum);
+
+  if (!member) {
+    return NextResponse.json({ valid: false, reason: "not_in_cast" });
+  }
+  if (!castMemberActs(member)) {
+    return NextResponse.json({ valid: false, reason: "not_acting_role" });
+  }
+
+  return NextResponse.json({ valid: true });
 }

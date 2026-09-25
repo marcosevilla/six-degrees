@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const TMDB_BASE = "https://api.themoviedb.org/3";
+import {
+  TMDB_BASE,
+  CastMember,
+  castMemberActs,
+  castPath,
+  toMediaType,
+} from "@/lib/tmdb-rules";
 
 export async function GET(request: NextRequest) {
   const apiKey = process.env.TMDB_API_KEY;
@@ -22,17 +27,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // For TV shows, use aggregate_credits to get cast across all seasons
-  const endpoint =
-    mediaType === "tv"
-      ? `${TMDB_BASE}/tv/${id}/aggregate_credits?api_key=${apiKey}`
-      : `${TMDB_BASE}/movie/${id}/credits?api_key=${apiKey}`;
+  // TV uses aggregate_credits to get cast across all seasons
+  const endpoint = `${TMDB_BASE}${castPath(toMediaType(mediaType), id)}?api_key=${apiKey}`;
 
   const res = await fetch(endpoint);
   const data = await res.json();
 
-  const cast = (data.cast || []).map(
-    (c: { id: number; name: string; character?: string; roles?: { character: string }[]; profile_path: string | null }) => ({
+  type Member = CastMember & { name: string; profile_path: string | null };
+  const cast = (data.cast || []).filter((c: Member) => castMemberActs(c)).map(
+    (c: Member) => ({
       id: c.id,
       name: c.name,
       character: c.character || (c.roles?.[0]?.character ?? ""),
