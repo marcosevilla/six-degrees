@@ -266,7 +266,7 @@ Before ending any session:
 
 ## Current State
 _Updated by Claude — 2026-09-25 (Session 5, relaunch step 1: API hardening)_
-- **Live (production, unchanged):** https://six-degrees-topaz.vercel.app — still has the Kimmel exploit until this session's work is promoted.
+- **Live:** https://six-degrees-topaz.vercel.app — this session deployed via push to `main` (Git integration auto-deploys production); `npm run smoke` 14/14 on production.
 - **Verified preview:** https://six-degrees-mrib163l7-marco-sevilla-projects.vercel.app — `npm run smoke` 14/14.
 - **Tracker:** https://claude.ai/artifact/RDcTCkgjzBstWVz12XAYcH (see NEXT.md).
 - **This session completed (commits `e78b4d7`…`467d0c7`):**

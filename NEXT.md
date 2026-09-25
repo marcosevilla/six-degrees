@@ -4,8 +4,8 @@
 Full analysis + build prompts: `~/Obsidian/marcowits/resources/research/2026-09-25-six-degrees-relaunch-analysis.md`
 
 ## 2026-09-25 — relaunch review (no code changed since 08-06)
-- [x] **P1 API hardening** — DONE on preview 2026-09-25 (smoke 14/14): shared `lib/tmdb-rules.ts`, smoke script, reach-ranked committed pool, TMDb attribution, caching + rate limit, ESLint, AGENTS.md symlinked
-  - [ ] **Promote to production** (needs Marco's OK) — prod still has the Kimmel exploit
+- [x] **P1 API hardening** — DONE + LIVE 2026-09-25 (smoke 14/14): shared `lib/tmdb-rules.ts`, smoke script, reach-ranked committed pool, TMDb attribution, caching + rate limit, ESLint, AGENTS.md symlinked
+  - [x] Promoted to production 2026-09-25 (push to main auto-deploys) — smoke 14/14 live
   - [ ] Pool overrides: consider adding Sydney Sweeney, Austin Butler (`data/pool-overrides.json`, then `npm run build:pool`)
   - [ ] Monthly: `npm run build:pool` + commit (TMDb 6-month cache cap; smoke fails at 180 days)
 - [ ] **Rename** — "Six Degrees" taken by 3 live daily games; lead pick *Match Cut* (matchcut.game looked free) → Prompt 2
