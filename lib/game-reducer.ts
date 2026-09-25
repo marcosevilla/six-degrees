@@ -64,6 +64,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ],
         searchMode: "person",
         selectedMedia: action.media,
+        // A link hint named a route through some other title (or none).
+        hintLink: null,
       };
 
     case "SELECT_PERSON": {
@@ -96,6 +98,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         chain: newChain,
         searchMode: "media",
         selectedMedia: null,
+        // New current actor: their hint ladder starts fresh.
+        hintFilms: null,
+        hintLink: null,
       };
     }
 
@@ -116,21 +121,66 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             }
           : null;
 
+      const removedActor = state.chain[state.chain.length - 1].type === "actor";
       return {
         ...state,
         chain: newChain,
         searchMode: newSearchMode,
         selectedMedia: newSelectedMedia,
+        // Removing an actor changes who we're working from; removing a film
+        // makes any link hint through it stale.
+        hintLink: null,
+        ...(removedActor ? { hintFilms: null } : {}),
       };
     }
 
+    // Start over is a fresh attempt at the same pair: new clock, but hints
+    // already taken still count.
     case "RESET_CHAIN":
+      if (state.phase !== "playing" || state.closing) return state;
       return {
         ...state,
         chain: [state.chain[0]],
         searchMode: "media",
         selectedMedia: null,
+        startTime: action.now,
+        pausedMs: 0,
+        pauseStartedAt: null,
+        hintFilms: null,
+        hintLink: null,
       };
+
+    case "USE_HINT_FILMS":
+      if (state.phase !== "playing" || state.closing) return state;
+      return {
+        ...state,
+        hintsUsed: state.hintsUsed + 1,
+        hintFilms: { actorId: action.actorId, films: action.films },
+      };
+
+    case "USE_HINT_LINK":
+      if (state.phase !== "playing" || state.closing) return state;
+      return {
+        ...state,
+        hintsUsed: state.hintsUsed + 1,
+        hintLink: { actorId: action.actorId, links: action.links },
+      };
+
+    case "GIVE_UP": {
+      if (state.phase !== "playing" || state.closing) return state;
+      const openPause = state.pauseStartedAt !== null ? Math.max(0, action.now - state.pauseStartedAt) : 0;
+      return {
+        ...state,
+        phase: "results",
+        endReason: "gaveUp",
+        endTime: action.now,
+        pausedMs: state.pausedMs + openPause,
+        pauseStartedAt: null,
+        bestRoute: action.bestRoute,
+        searchMode: "media",
+        selectedMedia: null,
+      };
+    }
 
     case "PAUSE_TIMER":
       if (state.phase !== "playing" || state.pauseStartedAt !== null) return state;

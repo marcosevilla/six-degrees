@@ -9,6 +9,7 @@ import { elapsedMs, formatTime } from "@/lib/scoring";
 import { playCardSound, playWinSound, playRemoveSound } from "@/lib/sounds";
 import { SearchInput } from "./SearchInput";
 import { ChainDisplay } from "./ChainDisplay";
+import { HintLadder } from "./HintLadder";
 
 export function ChainBuilder() {
   const { state, dispatch } = useGame();
@@ -21,6 +22,8 @@ export function ChainBuilder() {
   const [now, setNow] = useState(() => Date.now());
 
   const currentActor = chain.length > 0 ? chain[chain.length - 1] : null;
+  // The actor the player is working from (the chain may end on a picked film).
+  const lastActor = [...chain].reverse().find((l) => l.type === "actor") ?? null;
 
   // Live clock. elapsedMs leaves out time spent waiting on validation.
   useEffect(() => {
@@ -100,6 +103,19 @@ export function ChainBuilder() {
     }
   };
 
+  const hintLadder =
+    actorPair && lastActor ? (
+      <div className="w-full md:max-w-[480px]">
+        <HintLadder
+          currentActor={lastActor}
+          start={actorPair.start}
+          target={actorPair.end}
+          onPickFilm={handleSelectMedia}
+          disabled={isValidating}
+        />
+      </div>
+    ) : null;
+
   const placeholder =
     searchMode === "media"
       ? `What was ${currentActor?.name} in?`
@@ -150,6 +166,7 @@ export function ChainBuilder() {
           >
             {difficulty}
             {par !== null && ` · Par ${par}`}
+            {state.hintsUsed > 0 && ` · +${state.hintsUsed} hint${state.hintsUsed === 1 ? "" : "s"}`}
           </p>
         )}
         {actorPair && (
@@ -190,6 +207,9 @@ export function ChainBuilder() {
           {searchBar(0)}
         </div>
       </ChainDisplay>
+
+      {/* Desktop: stuck exits under the chain */}
+      {hintLadder && <div className="hidden md:flex justify-center px-8 mt-4">{hintLadder}</div>}
 
       {showSoftLimit && (
         <p
@@ -233,7 +253,8 @@ export function ChainBuilder() {
           borderTop: "1px solid var(--color-border)",
         }}
       >
-        <div className="px-4 py-3 pb-[env(safe-area-inset-bottom,12px)]">
+        <div className="px-4 py-3 pb-[env(safe-area-inset-bottom,12px)] flex flex-col gap-2">
+          {hintLadder}
           {searchBar(1)}
         </div>
       </div>

@@ -13,7 +13,8 @@ export function ResultsScreen() {
 
   const steps = getChainSteps(chain);
   const elapsed = elapsedMs(state, state.endTime ?? 0);
-  const label = getScoreLabel(scoreVsPar(steps, hintsUsed, par));
+  const gaveUp = state.endReason === "gaveUp";
+  const label = gaveUp ? "Gave up" : getScoreLabel(scoreVsPar(steps, hintsUsed, par));
 
   const shareText = actorPair
     ? `Six Degrees · Par ${par}\n${actorPair.start.name} → ${actorPair.end.name}: ${steps} step${steps !== 1 ? "s" : ""} · ${label}`
@@ -99,7 +100,7 @@ export function ResultsScreen() {
       </p>
 
       {/* Completed chain visualization */}
-      {actorPair && (
+      {actorPair && !gaveUp && (
         <ChainDisplay
           chain={chain}
           currentSearchMode="media"

@@ -70,3 +70,64 @@ test("RESUME without a PAUSE changes nothing", () => {
 test("PAUSE outside play changes nothing", () => {
   assert.equal(gameReducer(initialGameState, { type: "PAUSE_TIMER", now: 5 }), initialGameState);
 });
+
+// --- Item 3: stuck exits ---
+
+const withFilm = () => gameReducer(started(), { type: "SELECT_MEDIA", media: FILM });
+
+test("RESET_CHAIN resets the clock but keeps what hints cost", () => {
+  let s = gameReducer(started(), { type: "USE_HINT_FILMS", actorId: 1, films: [FILM] });
+  s = gameReducer(s, { type: "SELECT_MEDIA", media: FILM });
+  s = gameReducer(s, { type: "PAUSE_TIMER", now: 1500 });
+  s = gameReducer(s, { type: "RESET_CHAIN", now: 4000 });
+  assert.deepEqual(
+    [s.chain.length, s.startTime, s.pausedMs, s.pauseStartedAt, s.hintsUsed, s.hintFilms, s.searchMode],
+    [1, 4000, 0, null, 1, null, "media"],
+  );
+});
+
+test("each hint costs one", () => {
+  let s = gameReducer(started(), { type: "USE_HINT_FILMS", actorId: 1, films: [FILM] });
+  s = gameReducer(s, {
+    type: "USE_HINT_LINK",
+    actorId: 1,
+    links: [
+      { type: "media", id: 5, name: "T" },
+      { type: "actor", id: 7, name: "C" },
+    ],
+  });
+  assert.equal(s.hintsUsed, 2);
+  assert.equal(s.hintLink?.actorId, 1);
+  assert.equal(s.hintFilms?.films.length, 1);
+});
+
+test("hints clear when the chain moves to a new actor", () => {
+  let s = gameReducer(started(), { type: "USE_HINT_FILMS", actorId: 1, films: [FILM] });
+  s = gameReducer(s, { type: "SELECT_MEDIA", media: FILM });
+  assert.equal(s.hintFilms?.actorId, 1, "still on actor 1 while picking a costar");
+  s = gameReducer(s, { type: "SELECT_PERSON", person: { id: 3, name: "C", profilePath: null } });
+  assert.deepEqual([s.hintFilms, s.hintLink], [null, null]);
+});
+
+test("GIVE_UP lands on results with the best route and stops the clock", () => {
+  const route = [{ type: "actor" as const, id: 1, name: "A" }];
+  let s = gameReducer(withFilm(), { type: "PAUSE_TIMER", now: 8000 });
+  s = gameReducer(s, { type: "GIVE_UP", bestRoute: route, now: 9000 });
+  assert.deepEqual(
+    [s.phase, s.endReason, s.endTime, s.bestRoute, s.pausedMs, s.pauseStartedAt],
+    ["results", "gaveUp", 9000, route, 1000, null],
+  );
+});
+
+test("GIVE_UP and hints outside play change nothing", () => {
+  assert.equal(gameReducer(initialGameState, { type: "GIVE_UP", bestRoute: null, now: 1 }), initialGameState);
+  assert.equal(gameReducer(initialGameState, { type: "USE_HINT_FILMS", actorId: 1, films: [] }), initialGameState);
+});
+
+test("a link hint goes stale when the picked film changes", () => {
+  const link = { type: "USE_HINT_LINK" as const, actorId: 1, links: [{ type: "media" as const, id: 9, name: "M" }, { type: "actor" as const, id: 7, name: "C" }] };
+  let s = gameReducer(withFilm(), link);
+  assert.equal(gameReducer(s, { type: "UNDO_LAST" }).hintLink, null, "undoing the film drops it");
+  s = gameReducer(started(), link);
+  assert.equal(gameReducer(s, { type: "SELECT_MEDIA", media: FILM }).hintLink, null, "picking a film drops it");
+});

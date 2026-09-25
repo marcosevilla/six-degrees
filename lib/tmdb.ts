@@ -48,9 +48,13 @@ export async function fetchPuzzleForPair(startId: number, targetId: number): Pro
   return res.json();
 }
 
-// Best route from any actor to the target. null = no route from there.
-export async function fetchRoute(fromId: number, toId: number): Promise<Route | null> {
-  const res = await fetch(`/api/route?from=${fromId}&to=${toId}`);
+// Best route from any actor to the target, optionally through a title the
+// player already picked. null = no route from there.
+export async function fetchRoute(fromId: number, toId: number, via?: MediaResult | null): Promise<Route | null> {
+  const viaQuery = via
+    ? `&via=${via.id}&viaType=${via.mediaType}&viaName=${encodeURIComponent(via.title)}`
+    : "";
+  const res = await fetch(`/api/route?from=${fromId}&to=${toId}${viaQuery}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`route ${res.status}`);
   return (await res.json()).route;

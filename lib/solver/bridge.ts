@@ -16,6 +16,42 @@ export interface CreditsSource {
   castOf(title: BridgeTitle): Promise<number[]>;
 }
 
+// Votes by title, built once per graph, for preferring well-known onward routes.
+const votesCache = new WeakMap<Graph, Map<string, number>>();
+function routeVotes(g: Graph, r: Route): number {
+  let byKey = votesCache.get(g);
+  if (!byKey) {
+    byKey = new Map(g.titles.map((t) => [`${t.mediaType}:${t.id}`, t.votes]));
+    votesCache.set(g, byKey);
+  }
+  return r.steps.reduce((sum, s) => (s.kind === "title" ? sum + (byKey!.get(`${s.mediaType}:${s.id}`) ?? 0) : sum), 0);
+}
+
+// Of these people, whose route to the target is shortest (then best-known)?
+function bestOnward(g: Graph, ids: number[], toId: number, skipId: number): Route | null {
+  let best: Route | null = null;
+  let bestVotes = -1;
+  for (const id of [...new Set(ids)].sort((a, b) => a - b)) {
+    if (id === skipId || !g.actorIndex.has(id)) continue;
+    const onward = shortestRoute(g, id, toId);
+    if (!onward) continue;
+    const votes = routeVotes(g, onward);
+    if (!best || onward.par < best.par || (onward.par === best.par && votes > bestVotes)) {
+      best = onward;
+      bestVotes = votes;
+    }
+  }
+  return best;
+}
+
+function prepend(fromId: number, fromName: string, t: BridgeTitle, onward: Route): Route {
+  const head: RouteStep[] = [
+    { kind: "actor", id: fromId, name: fromName },
+    { kind: "title", id: t.id, name: t.name, mediaType: t.mediaType, year: t.year },
+  ];
+  return { steps: [...head, ...onward.steps], par: onward.par + 1 };
+}
+
 // Players can reach actors the graph pruned away: obscure films are allowed and
 // can even beat par. To hint from there, look through that actor's biggest
 // titles and hop onto whichever graph actor has the shortest onward route.
@@ -31,26 +67,25 @@ export async function routeFromAnyActor(
 
   const titles = (await src.titlesFor(fromId)).sort((a, b) => b.votes - a.votes).slice(0, maxTitles);
   const casts = await Promise.all(titles.map((t) => src.castOf(t)));
-
-  let bestTitle: BridgeTitle | null = null;
-  let bestOnward: Route | null = null;
-  titles.forEach((title, i) => {
-    for (const id of [...new Set(casts[i])].sort((a, b) => a - b)) {
-      if (id === fromId || !g.actorIndex.has(id)) continue;
-      const onward = shortestRoute(g, id, toId);
-      if (onward && (!bestOnward || onward.par < bestOnward.par)) {
-        bestTitle = title;
-        bestOnward = onward;
-      }
-    }
+  let best: Route | null = null;
+  titles.forEach((t, i) => {
+    const onward = bestOnward(g, casts[i], toId, fromId);
+    if (onward && (!best || onward.par + 1 < best.par)) best = prepend(fromId, fromName, t, onward);
   });
-  if (!bestTitle || !bestOnward) return null;
+  return best;
+}
 
-  const t: BridgeTitle = bestTitle;
-  const onward: Route = bestOnward;
-  const head: RouteStep[] = [
-    { kind: "actor", id: fromId, name: fromName },
-    { kind: "title", id: t.id, name: t.name, mediaType: t.mediaType, year: t.year },
-  ];
-  return { steps: [...head, ...onward.steps], par: onward.par + 1 };
+// The player already picked a title and needs a costar from it: the best route
+// that goes through that title (any title, in the graph or not).
+export async function routeViaTitle(
+  g: Graph,
+  fromId: number,
+  title: BridgeTitle,
+  toId: number,
+  src: CreditsSource,
+  { fromName = "" }: { fromName?: string } = {},
+): Promise<Route | null> {
+  if (!g.actorIndex.has(toId)) return null;
+  const onward = bestOnward(g, await src.castOf(title), toId, fromId);
+  return onward ? prepend(fromId, fromName, title, onward) : null;
 }
