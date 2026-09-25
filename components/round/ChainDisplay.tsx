@@ -3,12 +3,20 @@
 import { useRef, useEffect, useState, useCallback, ReactNode } from "react";
 import { ChainLink, SearchMode } from "@/lib/types";
 import { ChainCard, ChainConnector } from "./ChainCard";
+import { WIN_MOTION, bounceDelayMs } from "@/lib/motion";
 
 interface ChainDisplayProps {
   chain: ChainLink[];
   currentSearchMode: SearchMode;
   targetActor: { name: string; id: number; profilePath?: string | null };
   isComplete: boolean;
+  // "reachable": the picked film contains the target, so tapping them closes
+  // the chain. Only used while playing.
+  targetState?: "idle" | "reachable";
+  // Bounce the cards when complete. Results shows the chain still: the bounce
+  // already played in the playing view.
+  celebrate?: boolean;
+  onCloseChain?: () => void;
   onUndo?: () => void;
   children?: ReactNode;
 }
@@ -18,6 +26,9 @@ export function ChainDisplay({
   currentSearchMode,
   targetActor,
   isComplete,
+  targetState = "idle",
+  celebrate = true,
+  onCloseChain,
   onUndo,
   children,
 }: ChainDisplayProps) {
@@ -78,13 +89,13 @@ export function ChainDisplay({
     }
   }, [chain.length, updateSearchPosition]);
 
-  // Trigger wave animation on completion
+  // Win bounce on completion; each card's delay (after the connector draws)
+  // comes from lib/motion.ts.
   useEffect(() => {
-    if (isComplete) {
-      const timer = setTimeout(() => setIsWaving(true), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isComplete]);
+    if (!isComplete || !celebrate) return;
+    const frame = requestAnimationFrame(() => setIsWaving(true));
+    return () => cancelAnimationFrame(frame);
+  }, [isComplete, celebrate]);
 
   const displayChain = isComplete ? chain.slice(0, -1) : chain;
 
@@ -112,7 +123,7 @@ export function ChainDisplay({
                   isNewest={!isComplete && i === displayChain.length - 1 && i > 0}
                   onRemove={onUndo}
                   isWaving={isWaving}
-                  waveDelay={isComplete ? (displayChain.length - 1 - i) * 80 : 0}
+                  waveDelay={isComplete ? bounceDelayMs(i) : 0}
                   heightDvh={i === 0 ? bookendH : intermediateH}
                   bobIndex={i}
                 />
@@ -139,18 +150,40 @@ export function ChainDisplay({
           style={{ background: "linear-gradient(to right, transparent, var(--color-bg))" }}
         />
 
-        {/* Pinned target actress — no connector until complete */}
+        {/* Pinned target — no connector until complete */}
         <div className="flex-shrink-0 flex items-center pr-3 md:pr-8">
-          {isComplete && <ChainConnector confirmed />}
-          <ChainCard
-            variant="end"
-            name={targetActor.name}
-            imagePath={targetActor.profilePath}
-            isActive={isComplete}
-            isWaving={isWaving}
-            waveDelay={0}
-            heightDvh={bookendH}
-          />
+          {isComplete && <ChainConnector confirmed draw />}
+          {targetState === "reachable" && onCloseChain ? (
+            <button
+              onClick={onCloseChain}
+              className="target-reachable flex flex-col items-center gap-1 cursor-pointer rounded-sm"
+              style={{ "--pulse-ms": `${WIN_MOTION.targetPulseMs}ms` } as React.CSSProperties}
+              aria-label={`Close the chain with ${targetActor.name}`}
+            >
+              <ChainCard
+                variant="end"
+                name={targetActor.name}
+                imagePath={targetActor.profilePath}
+                heightDvh={bookendH}
+              />
+              <span
+                className="text-[10px] uppercase tracking-[0.15em] fade-in-up"
+                style={{ color: "var(--color-accent)" }}
+              >
+                Tap to close the chain
+              </span>
+            </button>
+          ) : (
+            <ChainCard
+              variant="end"
+              name={targetActor.name}
+              imagePath={targetActor.profilePath}
+              isActive={isComplete}
+              isWaving={isWaving}
+              waveDelay={bounceDelayMs(displayChain.length)}
+              heightDvh={bookendH}
+            />
+          )}
         </div>
       </div>
 

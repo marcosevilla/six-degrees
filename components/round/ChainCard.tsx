@@ -1,6 +1,7 @@
 "use client";
 
 import { getProfileUrl, getPosterUrl } from "@/lib/actor-pool";
+import { WIN_MOTION } from "@/lib/motion";
 
 interface ChainCardProps {
   variant: "start" | "end" | "actor" | "media" | "placeholder";
@@ -68,9 +69,9 @@ export function ChainCard({
 
   return (
     <div
-      className={`flex flex-col items-center gap-1.5 flex-shrink-0 ${isNew ? "card-flip-in card-glow" : ""} ${isWaving ? "card-wave" : ""}`}
+      className={`flex flex-col items-center gap-1.5 flex-shrink-0 ${isNew ? "card-flip-in card-glow" : ""} ${isWaving ? "win-bounce" : ""}`}
       style={{
-        ...(isWaving ? { animationDelay: `${waveDelay}ms` } : {}),
+        ...(isWaving ? { animationDelay: `${waveDelay}ms`, animationDuration: `${WIN_MOTION.bounceMs}ms` } : {}),
         ...(shouldBob ? {
           animation: `${bobAnim} ${bobDuration}s ease-in-out ${bobDelay}s infinite`,
         } : {}),
@@ -139,7 +140,16 @@ export function ChainCard({
   );
 }
 
-function ChainConnector({ confirmed = true, swayIndex = 0 }: { confirmed?: boolean; swayIndex?: number }) {
+function ChainConnector({
+  confirmed = true,
+  swayIndex = 0,
+  draw = false,
+}: {
+  confirmed?: boolean;
+  swayIndex?: number;
+  // Draw the line in (the chain just closed).
+  draw?: boolean;
+}) {
   const duration = 3 + (swayIndex % 3) * 0.6;
   const delay = swayIndex * 0.3;
 
@@ -148,13 +158,15 @@ function ChainConnector({ confirmed = true, swayIndex = 0 }: { confirmed?: boole
       width="28"
       height="40"
       viewBox="0 0 28 40"
-      className="flex-shrink-0 mx-0 w-5 md:w-7 h-auto"
+      className={`flex-shrink-0 mx-0 w-5 md:w-7 h-auto ${draw ? "connector-draw" : ""}`}
       style={{
         animation: `string-sway ${duration}s ease-in-out ${delay}s infinite`,
         transformOrigin: "center center",
+        ...(draw ? ({ "--draw-ms": `${WIN_MOTION.connectorDrawMs}ms` } as React.CSSProperties) : {}),
       }}
     >
       <path
+        pathLength={1}
         d="M 0 20 C 8 8, 20 32, 28 20"
         stroke={confirmed ? "var(--color-accent)" : "var(--color-border)"}
         fill="none"

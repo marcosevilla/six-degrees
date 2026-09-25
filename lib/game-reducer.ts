@@ -50,6 +50,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
     case "SELECT_MEDIA":
+      if (state.phase !== "playing" || state.closing || state.searchMode !== "media") return state;
       return {
         ...state,
         chain: [
@@ -69,33 +70,20 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
     case "SELECT_PERSON": {
-      const isTarget =
-        state.actorPair && action.person.id === state.actorPair.end.id;
-
-      const newChain = [
-        ...state.chain,
-        {
-          type: "actor" as const,
-          id: action.person.id,
-          name: action.person.name,
-          profilePath: action.person.profilePath,
-        },
-      ];
-
-      if (isTarget) {
-        return {
-          ...state,
-          chain: newChain,
-          phase: "results",
-          endTime: Date.now(),
-          searchMode: "media",
-          selectedMedia: null,
-        };
-      }
-
+      if (state.phase !== "playing" || state.closing || state.searchMode !== "person") return state;
+      // Reaching the target is CLOSE_CHAIN's job (the tap-to-close beat).
+      if (state.actorPair && action.person.id === state.actorPair.end.id) return state;
       return {
         ...state,
-        chain: newChain,
+        chain: [
+          ...state.chain,
+          {
+            type: "actor" as const,
+            id: action.person.id,
+            name: action.person.name,
+            profilePath: action.person.profilePath,
+          },
+        ],
         searchMode: "media",
         selectedMedia: null,
         // New current actor: their hint ladder starts fresh.
@@ -105,7 +93,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case "UNDO_LAST": {
-      if (state.chain.length <= 1) return state;
+      if (state.phase !== "playing" || state.closing || state.chain.length <= 1) return state;
 
       const newChain = state.chain.slice(0, -1);
       const lastLink = newChain[newChain.length - 1];
@@ -193,6 +181,32 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         pausedMs: state.pausedMs + Math.max(0, action.now - state.pauseStartedAt),
         pauseStartedAt: null,
       };
+
+    // The player tapped the target: the chain is complete. Stay on the playing
+    // screen for the close-the-chain beat; FINISH moves to results after it.
+    case "CLOSE_CHAIN": {
+      if (state.phase !== "playing" || state.closing || state.searchMode !== "person" || !state.actorPair) {
+        return state;
+      }
+      const target = state.actorPair.end;
+      const openPause = state.pauseStartedAt !== null ? Math.max(0, action.now - state.pauseStartedAt) : 0;
+      return {
+        ...state,
+        chain: [...state.chain, { type: "actor", id: target.id, name: target.name, profilePath: target.profilePath ?? null }],
+        closing: true,
+        endTime: action.now,
+        pausedMs: state.pausedMs + openPause,
+        pauseStartedAt: null,
+        searchMode: "media",
+        selectedMedia: null,
+        hintFilms: null,
+        hintLink: null,
+      };
+    }
+
+    case "FINISH":
+      if (!state.closing) return state;
+      return { ...state, phase: "results", closing: false, endReason: "won", bestRoute: action.bestRoute };
 
     case "PLAY_AGAIN":
       return initialGameState;

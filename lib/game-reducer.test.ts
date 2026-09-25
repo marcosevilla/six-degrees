@@ -131,3 +131,44 @@ test("a link hint goes stale when the picked film changes", () => {
   s = gameReducer(started(), link);
   assert.equal(gameReducer(s, { type: "SELECT_MEDIA", media: FILM }).hintLink, null, "picking a film drops it");
 });
+
+// --- Item 4: tap the target to close the chain ---
+
+test("CLOSE_CHAIN adds the target and stops the clock, but stays in play for the beat", () => {
+  const s = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000 });
+  assert.deepEqual([s.phase, s.closing, s.endTime, s.chain.at(-1)?.id, s.searchMode], ["playing", true, 7000, 2, "media"]);
+});
+
+test("CLOSE_CHAIN needs a picked film and only fires once", () => {
+  const s0 = started();
+  assert.equal(gameReducer(s0, { type: "CLOSE_CHAIN", now: 1 }), s0);
+  const closed = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000 });
+  assert.equal(gameReducer(closed, { type: "CLOSE_CHAIN", now: 8000 }), closed);
+});
+
+test("CLOSE_CHAIN folds an open pause into paused time", () => {
+  let s = gameReducer(withFilm(), { type: "PAUSE_TIMER", now: 6000 });
+  s = gameReducer(s, { type: "CLOSE_CHAIN", now: 7000 });
+  assert.deepEqual([s.pausedMs, s.pauseStartedAt], [1000, null]);
+});
+
+test("FINISH only follows CLOSE_CHAIN", () => {
+  const s0 = withFilm();
+  assert.equal(gameReducer(s0, { type: "FINISH", bestRoute: null }), s0);
+  const route = [{ type: "actor" as const, id: 1, name: "A" }];
+  const s = gameReducer(gameReducer(s0, { type: "CLOSE_CHAIN", now: 7000 }), { type: "FINISH", bestRoute: route });
+  assert.deepEqual([s.phase, s.endReason, s.closing, s.bestRoute], ["results", "won", false, route]);
+});
+
+test("naming the target in search doesn't skip the close", () => {
+  const s0 = withFilm();
+  assert.equal(gameReducer(s0, { type: "SELECT_PERSON", person: { id: 2, name: "B", profilePath: null } }), s0);
+});
+
+test("nothing else moves while the chain is closing", () => {
+  const closed = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000 });
+  assert.equal(gameReducer(closed, { type: "GIVE_UP", bestRoute: null, now: 8000 }), closed);
+  assert.equal(gameReducer(closed, { type: "UNDO_LAST" }), closed);
+  assert.equal(gameReducer(closed, { type: "RESET_CHAIN", now: 8000 }), closed);
+  assert.equal(gameReducer(closed, { type: "SELECT_MEDIA", media: FILM }), closed);
+});

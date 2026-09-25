@@ -45,7 +45,7 @@ export function ResultsScreen() {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center gap-4 md:gap-6 px-4 md:px-6 py-8 md:py-12">
+    <div className="min-h-dvh flex flex-col items-center justify-center gap-4 md:gap-6 px-4 md:px-6 py-8 md:py-12 fade-in-up">
       {/* Difficulty + Score label */}
       {difficulty && (
         <p
@@ -106,6 +106,7 @@ export function ResultsScreen() {
           currentSearchMode="media"
           targetActor={actorPair.end}
           isComplete={true}
+          celebrate={false}
         />
       )}
 
