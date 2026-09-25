@@ -1,7 +1,7 @@
 # Six Degrees — Project Context
 
 ## Overview
-A public actor-connection game. Given two random actors, build a chain of movies and co-stars to connect them in the fewest steps and shortest time. Forked from the Valentine's "Scream Queens: Six Degrees" project — stripped of all personal content and rebuilt with a generic game loop.
+A public actor-connection game. Given two actors, build a chain of movies and co-stars to connect them in as few steps as possible. Scored like golf: steps (plus hints) against par, the shortest route the solver knows; time only breaks ties. Working name "Six Degrees" ("Casthop" is the placeholder for the rename; nothing renamed in code yet). Forked from the Valentine's "Scream Queens: Six Degrees" project — stripped of all personal content and rebuilt with a generic game loop.
 
 ## Safety Rules
 - Always commit working state before starting a new feature or risky change
@@ -25,6 +25,10 @@ A public actor-connection game. Given two random actors, build a chain of movies
 - **One rulebook** — every "does this count as a connection?" decision goes through `lib/tmdb-rules.ts`. Never filter credits inline in a route; that split is how the Kimmel exploit happened.
 - **Preview deploys are behind Vercel Authentication** — to smoke-test one, pull the bypass secret via `vercel curl --debug` (recipe at the top of `scripts/smoke.ts`).
 - **ESLint 10 + eslint-plugin-react** — the React version must stay pinned in `eslint.config.mjs`; auto-detect crashes on ESLint 10.
+- **The costar graph must match the pool** — `data/costar-graph.json` is built from `data/actor-pool.json` by `npm run build:graph` (~100s, ~9k TMDb calls, cached in `.cache/graph-build/`). Rerun it every time the pool changes and commit both. `build:graph` fails if a pool actor is missing from the graph.
+- **Tests** — `npm test` runs `node --test` through `npx tsx` (no test deps). Fixture graphs live in `lib/solver/__fixtures__/`. The reducer takes time as `now` on actions; never call `Date.now()` inside `gameReducer`.
+- **Dev StrictMode deals twice** — RevealScreen's fetch effect runs twice in dev and keeps one result (cancel flag). Browser tests must read the pair from the screen, not the first `/api/puzzle` response.
+- **Motion values** — every win-moment timing is in `lib/motion.ts`; don't hardcode durations elsewhere.
 
 ## Tech Stack
 - **Framework**: Next.js 16 (App Router, Turbopack)
@@ -46,12 +50,14 @@ app/
   api/tmdb/
     search/route.ts             # Search movies, TV, actors via TMDb (ineligible titles filtered out)
     credits/route.ts            # Get cast list for a movie/show
-    validate/route.ts           # Validate actor↔movie connection
+    validate/route.ts           # Validate actor↔movie connection (player moves; full cast)
     pool/route.ts               # Serves data/actor-pool.json (static, no TMDb calls)
-    verify-pair/route.ts        # Verify pair connectability + difficulty classification
-    person/route.ts             # Look up actor by TMDb ID (for share links)
+    person/route.ts             # Look up actor by TMDb ID
+    filmography/route.ts        # Hint rung 1: an actor's 5 best-known eligible titles
+  api/puzzle/route.ts           # Deal a verified pair + par (?difficulty=) or check a share pair (?start=&target=)
+  api/route/route.ts            # Best route from any actor to the target (&via= a picked title); bridges off-graph actors
   play/
-    page.tsx                    # Share link landing page (/play?pair=id-id&d=difficulty)
+    page.tsx                    # Share link landing page (/play?pair=id-id) → verified via /api/puzzle → reveal
 components/
   Game.tsx                      # State-driven screen switcher + difficulty-based accent color + share-link auto-start
   screens/
@@ -60,26 +66,35 @@ components/
     PlayingScreen.tsx           # Wrapper for ChainBuilder
     ResultsScreen.tsx           # Score + completed chain + share + play again
   round/
-    ChainBuilder.tsx            # Core gameplay: search + validate + chain + timer + sound effects
+    ChainBuilder.tsx            # Core gameplay: search + validate (clock paused) + chain + close-the-chain beat
+    HintLadder.tsx              # Stuck exits: top films → next link (+1 each), Show me a route (give up)
+    RouteList.tsx               # Plain route list for results (your route vs best route)
     ChainDisplay.tsx            # Horizontal scrollable card strip + scroll hint gradient
     ChainCard.tsx               # Individual card + connector + placeholder
     SearchInput.tsx             # Debounced autocomplete input
     SearchResults.tsx           # Dropdown result list (upward on mobile)
 lib/
   types.ts                      # All TypeScript types (GameState, GameAction, Difficulty, etc.)
-  actor-pool.ts                 # Dynamic pool fetch + client cache, random pair generation, image helpers
-  scoring.ts                    # Score calculation + formatting + labels
+  actor-pool.ts                 # Pool fetch + client cache, TMDb image URL helpers
+  scoring.ts                    # Steps, score vs par, labels, paused-aware elapsed time, share text
+  motion.ts                     # Win-moment timings (pulse, connector draw, Wordle bounce, settle)
+  route-links.ts                # Solver Route → ChainLink[]
+  search-rank.ts                # Exact/prefix title matches first in search
+  solver/                       # graph.ts (load), search.ts (bidirectional BFS), puzzle.ts (dealing + fair floor),
+                                #   bridge.ts (off-graph + via-title routes), server.ts (fs + TMDb source; server only)
   sounds.ts                     # Web Audio API synthesized sounds (card chime, win arpeggio, undo crumple, card flip whoosh)
   game-reducer.ts               # useReducer: all game state transitions
   GameContext.tsx                # React Context provider
-  tmdb.ts                       # Client-side fetch helpers (search, validate, verifyPair, fetchPerson)
+  tmdb.ts                       # Client fetch helpers (search, validate, fetchPuzzle, fetchPuzzleForPair, fetchRoute, fetchFilmography)
   tmdb-rules.ts                 # THE rulebook: eligible titles, acting roles, credit keys, cast paths
   api-cache.ts                  # TMDb fetch revalidate windows, CDN cache headers, per-IP rate limit
 scripts/
   build-pool.ts                 # npm run build:pool → data/actor-pool.json
+  build-graph.ts                # npm run build:graph → data/costar-graph.json (run after build:pool)
   smoke.ts                      # npm run smoke -- <baseUrl>: every route + exploit regression checks
 data/
   actor-pool.json               # Committed pool snapshot (400 actors, generatedAt)
+  costar-graph.json             # Committed solver graph (16.5k actors, 10.7k titles, 1.4 MB)
   pool-overrides.json           # Marco's include/exclude list for the pool
 public/
   tmdb-logo-short.svg           # Official TMDb wordmark for the required attribution
@@ -91,29 +106,38 @@ UI-CRITIQUE.md                  # Comprehensive UI/UX critique with prioritized 
 
 ## Game Flow
 ```
-Home (pick difficulty) → Reveal (card flip animation) → Playing (random pair, live timer) → Results (chain + score + share) → Play Again
+Home (pick difficulty) → Reveal (deals a verified pair + par) → Playing (clock pauses during checks; hints; give up)
+  → tap the target to close the chain (beat in the playing view) → Results (score vs par, your route vs best route, share)
+  → Play Again (back through Reveal). Share links (/play?pair=) are verified by /api/puzzle, then go through Reveal too.
 ```
 
 ## State Shape
 ```typescript
 {
   phase: "home" | "revealing" | "playing" | "results",
-  difficulty: "easy" | "medium" | "hard" | null,
+  difficulty: "easy" | "medium" | null,
   actorPair: { start: PoolActor, end: PoolActor } | null,
+  par: number | null,                       // set by START_GAME (only from "revealing")
   chain: ChainLink[],
   searchMode: "media" | "person",
   selectedMedia: MediaResult | null,
-  startTime: number | null,
-  endTime: number | null,
+  startTime, endTime: number | null,
+  pausedMs: number, pauseStartedAt: number | null,   // validation time doesn't count
+  hintsUsed: number,                         // +1 score each; survives Start over
+  hintFilms, hintLink: { actorId, … } | null,        // cleared when the actor/film changes
+  closing: boolean,                          // CLOSE_CHAIN → beat → FINISH
+  bestRoute: ChainLink[] | null,
+  endReason: "won" | "gaveUp" | null,
 }
 ```
+Every reducer case guards its phase and returns the same state object for actions that make no sense now (tested in `lib/game-reducer.test.ts`).
 
 ## Actor Pool
 - **Source**: `scripts/build-pool.ts` → committed `data/actor-pool.json` (400 actors). Same pool on every server, so daily puzzles can depend on it.
 - **Ranking ("reach")**: billed cast (top 10) of the 500 most-voted English films, 100 most-voted films of the last 5 years, and 200 most-voted English shows. Each actor earns the title's vote count, weighted by billing order (`1 / (1 + order × 0.25)`), halved for voice-only roles, plus up to +30% for current TMDb popularity. Must have a photo and `known_for_department === "Acting"`.
 - **Overrides**: `data/pool-overrides.json` `include` / `exclude` by TMDb id. Seeded with Nicole Kidman, Jackie Chan, Jenna Ortega (the ranking misses stars whose hits aren't blockbusters). Sydney Sweeney and Austin Butler are also missing — add if wanted.
 - **Refresh**: `npm run build:pool` monthly, commit the JSON. TMDb's 6-month cache limit is enforced by the smoke test.
-- **Known effect**: a famous pool is highly connected. 20 random pairs → 8 easy / 12 medium / 0 hard, so Hard mode now nearly always hits the unverified fallback until the step 3 solver lands.
+- **Known effect**: a famous pool is highly connected: 29% of pool pairs are par 1, 71% par 2, 12 pairs par 3 (graph of 2026-09-25). That's why there is no Hard mode.
 
 ## Connection Rules (`lib/tmdb-rules.ts`)
 - **Ineligible titles**: genres Documentary 99, News 10763, Reality 10764, Talk 10767, plus TV titles named like awards shows (TMDb leaves The Oscars ungenred). SNL is tagged News, so it's out too: an accepted loss.
@@ -126,24 +150,13 @@ Home (pick difficulty) → Reveal (card flip animation) → Playing (random pair
 - Responses: `s-maxage` 1 day (search 1 hour) + 7× stale-while-revalidate. Verified CDN HITs on preview. Errors are never cached.
 - Rate limit: per-IP in-memory token bucket, burst 60, 2/s. Per instance, so a speed bump, not a global quota.
 
-## Difficulty System
-Difficulty determines how connected the randomly selected pair is:
-
-| Difficulty | Criteria | Optimal Solution |
-|-----------|---------|-----------------|
-| Easy | Actors share a movie | 1 step (Actor → Movie → Actor) |
-| Medium | Actors share a co-star but no direct movie | 2 steps (Actor → Movie → Co-Star → Movie → Actor) |
-| Hard | No connection found within 2 steps | 3+ steps |
-
-- **Pair generation**: tries up to 8 random pairs, validates each via `/api/tmdb/verify-pair`, picks the first that matches the selected difficulty
-- **Fallback**: if no matching pair found after 8 attempts, starts with whatever pair is available
-- **Verify-pair endpoint**: fetches combined credits for both actors, checks for shared movies (1-step) and shared co-stars (2-step)
-
-## Scoring
-- **Steps** = number of movies used = `(chain.length - 1) / 2`
-- **Time** = `endTime - startTime` (milliseconds)
-- Labels: 1 step = "Incredible!", 2 = "Amazing!", 3 = "Nice!", 4+ = "You got it!"
-- Live timer visible during gameplay (updates every second)
+## Difficulty, Par and Scoring
+- **Par** = the shortest route in the costar graph (bidirectional BFS, ~0.1 ms). Ties prefer the best-known titles. The graph is pruned (top-15 billed, 100+ votes), so a player can **beat par** with an obscure film: "Under par!".
+- **Difficulty = par band:** Easy = par 1, Medium = par 2. **No Hard mode:** only 12 of 79,800 pool pairs are par 3 with the famous pool (2026-09-25). A wider pool is the way back to Hard.
+- **Fair puzzles:** a dealt pair's best route must use only titles with ≥ `FAIR_MIN_VOTES` (1000) TMDb votes, so par never hinges on an obscure TV special. Keeps ~70% of par-1 and 92% of par-2 pairs.
+- **No unverified pairs anywhere:** `/api/puzzle` either returns a solved pair or an error (Reveal shows Retry; bad share links show a dead-end screen).
+- **Score** = steps (titles) + hints − par. Labels: "Under par!" / "Par" / "+N"; give-up shows "Gave up". Time (minus paused validation time) is a small tiebreaker line.
+- **Share text** (spoiler-free): `Six Degrees · Par 2` / `🎬🎬🎬 💡 · +2` / link. Share sheet on phones, clipboard elsewhere.
 
 ## Design Tokens (CSS Variables)
 
@@ -203,7 +216,7 @@ All synthesized via Web Audio API — no audio files needed.
 |-------|---------|-------------|
 | `playCardSound()` | Valid media/person selected | Ascending sine chime (660→880Hz, 250ms) |
 | `playRemoveSound()` | Undo or reset | Descending triangle thud (400→180Hz) + noise burst |
-| `playWinSound()` | Target actor reached | C major arpeggio (C5-E5-G5-C6, 120ms spacing) |
+| `playWinSound()` | Target tapped (chain closes) | C major arpeggio (C5-E5-G5-C6, 120ms spacing) |
 | `playFlipSound()` | Card flip during reveal | Bandpass-filtered noise burst + sine undertone (~300ms) |
 
 ### Reveal Screen (`RevealScreen.tsx`)
@@ -215,7 +228,7 @@ All synthesized via Web Audio API — no audio files needed.
 - **Slide-to-edges**: `useLayoutEffect` calculates `translateX` deltas based on POST-SHRINK flex positions so cards land at `px-3 md:px-8` from edges (matching PlayingScreen exactly)
 - **Timeline**: +500ms flip-left, +1500ms flip-right, +2500ms title, +4500ms slide-out, +5400ms dispatch START_GAME
 - **Image preloading**: `new Image()` with `onload` callbacks before triggering flips
-- **Share links skip reveal**: `/play?pair=id-id&d=difficulty` dispatches `START_GAME` directly
+- **Share links use the reveal too**: `/play?pair=id-id` → `presetPuzzle` (already verified) → same timeline
 
 ### Mobile Responsiveness
 - **Target**: 390px+ (iPhone 14 and up)
@@ -241,7 +254,7 @@ All synthesized via Web Audio API — no audio files needed.
 
 ### Medium Priority (polish)
 - [x] Fix difficulty classifier — filter non-acting credits, key on `media_type:id`, sort by `vote_count` (2026-08-06)
-- [ ] Make Hard mode reliable — still ~1 in 14 pairs, so it usually exhausts the 8 attempts and hits the silent unverified fallback. Needs BFS with caching.
+- [x] Solver + par (2026-09-25) — Hard mode removed instead: the famous pool has almost no par-3 pairs
 - [x] ESLint flat config (`eslint.config.mjs`) — `npm run lint` runs; 0 errors, 12 warnings (2026-09-25)
 - [ ] Update accent color on difficulty selection (not just on game start)
 - [ ] Increase `--color-text-secondary` to `#8A8A8A`+ for WCAG AA contrast
@@ -253,7 +266,7 @@ All synthesized via Web Audio API — no audio files needed.
 - [ ] Daily puzzle (seed-based pair generation — stub exists in `getPairForDate`)
 - [ ] Themed actor pools (horror, comedy, etc.)
 - [ ] Lightweight auth (Google/GitHub) for stats + leaderboards
-- [ ] Optimal-path comparison on results ("You used 4 steps. The shortest path is 2.")
+- [x] Optimal-path comparison on results (2026-09-25, plain lists; styling in the design pass)
 - [ ] Step counter during gameplay
 - [ ] Onboarding for first-time players
 - [ ] Hover states on chain cards (show full name, year)
@@ -265,21 +278,15 @@ Before ending any session:
 3. If any features are partially complete, describe what's left
 
 ## Current State
-_Updated by Claude — 2026-09-25 (Session 5, relaunch step 1: API hardening)_
-- **Live:** https://six-degrees-topaz.vercel.app — this session deployed via push to `main` (Git integration auto-deploys production); `npm run smoke` 14/14 on production.
-- **Verified preview:** https://six-degrees-mrib163l7-marco-sevilla-projects.vercel.app — `npm run smoke` 14/14.
-- **Tracker:** https://claude.ai/artifact/RDcTCkgjzBstWVz12XAYcH (see NEXT.md).
-- **This session completed (commits `e78b4d7`…`467d0c7`):**
-  - Closed the talk-show / awards-show / archive-footage exploit with one shared rulebook (`lib/tmdb-rules.ts`) used by validate, verify-pair, search and credits.
-  - `scripts/smoke.ts` (`npm run smoke -- <url>`).
-  - Replaced the trending `/person/popular` pool with the committed reach-ranked pool + overrides.
-  - TMDb attribution on the home screen (Marco's spec: short wordmark 12px, notice 10px `#8A8A8A`; the 8px gap and 340px max-width are placeholders).
-  - CDN + data-cache caching and a per-IP rate limit on all proxy routes.
-  - ESLint flat config; fixed the one real error (`<a href="/">` → `<Link>` in `app/play/page.tsx`).
-  - `AGENTS.md` is now a symlink to this file.
-- **Modified files:** `lib/tmdb-rules.ts` (new), `lib/api-cache.ts` (new), `app/api/tmdb/{validate,verify-pair,search,credits,person,pool}/route.ts`, `components/screens/HomeScreen.tsx`, `app/play/page.tsx`, `scripts/{smoke,build-pool}.ts` (new), `data/{actor-pool,pool-overrides}.json` (new), `public/tmdb-logo-short.svg` (new), `eslint.config.mjs` (new), `package.json`, `.gitignore`, `AGENTS.md`.
-- **Lint warnings left for later:** `react-hooks/set-state-in-effect` ×4 (ChainBuilder:26, SearchInput:36, RevealScreen:70, play/page:23), `<img>` vs `next/image` ×5, unused vars (search `popularity`, ChainCard `mediaType`), SearchInput combobox missing `aria-controls`/`aria-expanded` pairing, one unused expression (SearchInput:145).
-- **Next:** relaunch step 2 (name) then step 3 (solver + par). Hard mode is effectively gone with the famous pool until the solver exists.
+_Updated by Claude — 2026-09-25 (Session 6, relaunch step 3: core loop v2)_
+- **Branch `core-loop-v2`, NOT merged or deployed.** Production (https://six-degrees-topaz.vercel.app) still runs session 5. Merge to `main` auto-deploys; then `npm run smoke -- https://six-degrees-topaz.vercel.app`.
+- **Verified locally:** `npm test` 51/51, `npm run lint` 0 errors (11 warnings), `npm run build` clean, `npm run smoke -- http://localhost:3100` 19/19. Every build item played in Playwright at 375 and 1440 (Easy + Medium; wins, give-ups, hints, share links, Play Again).
+- **This session (commits `7da0df8`…):** spec + plan in `docs/superpowers/`; costar graph + solver (`lib/solver/`, `scripts/build-graph.ts`, `data/costar-graph.json`); `/api/puzzle`, `/api/route`, `/api/tmdb/filmography`; verify-pair deleted; par in state; par-relative scoring + paused clock + Wordle shake on rejected picks; stuck exits (reset clock, hint ladder, show me a route); tap-to-close win moment (`lib/motion.ts`); results route comparison + share line; fair-puzzle floor; exact-match search ranking; Play Again through the reveal.
+- **Open for Marco:** confirm motion values (`lib/motion.ts`); rules call on animated-TV voice cameos; merge + deploy. Details in `NEXT.md`.
+- **Research used:** `~/Obsidian/marcowits/resources/research/2026-09-25-daily-web-game-patterns.md` (Wordle/Connections/Strands timings, share formats).
+
+### Session 5 (2026-09-25, relaunch step 1: API hardening)
+- Deployed to production; smoke 14/14. Shared rulebook `lib/tmdb-rules.ts`, `scripts/smoke.ts`, committed reach-ranked pool, TMDb attribution, caching + rate limit, ESLint config, `AGENTS.md` symlink.
 
 ### Session 4 (2026-08-06)
 - Shipped `RevealScreen` (`7c37b34`) and fixed the difficulty classifier (`61f138f`): combined_credits includes talk shows, awards, documentaries and archive compilations, so nearly every pair looked 1 step apart. Verified 14 pairs → 4 easy / 9 medium / 1 hard at the time.

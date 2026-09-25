@@ -9,10 +9,16 @@ Full analysis + build prompts: `~/Obsidian/marcowits/resources/research/2026-09-
   - [ ] Pool overrides: consider adding Sydney Sweeney, Austin Butler (`data/pool-overrides.json`, then `npm run build:pool`)
   - [ ] Monthly: `npm run build:pool` + commit (TMDb 6-month cache cap; smoke fails at 180 days)
 - [ ] **Rename** — 2026-09-25: shortlist checked, 4 finalists in https://claude.ai/artifact/D3WuDUd7NJZrXx5Mibsbqp (rec **Casthop** after round 2 — quirky coined word; .com/.game/.app/.io free, no TM filings, @casthop on X taken → @casthopgame free; Bacon names dropped). *Match Cut is OUT* (matchcutdaily.com is a live daily movie-connection game). **2026-09-25: name decision ON HOLD — "Casthop" is the working placeholder.** When ready: pick → registrar check + register domain. Notes: vault `resources/research/2026-09-25-game-name-shortlist.md`
-- [ ] **Core loop v2** — BFS solver + par scoring, hints/give-up, tappable-target win moment, kill unverified fallback, reset timer on Start over → Prompt 3
+- [x] **Core loop v2** — DONE 2026-09-25 on branch `core-loop-v2` (NOT merged/deployed yet): costar graph + solver, par scoring, paused clock, hint ladder, show-me-a-route, tap-to-close win, route comparison, fair-puzzle floor, Play Again via reveal. Spec `docs/superpowers/specs/2026-09-25-core-loop-v2-design.md`, plan `docs/superpowers/plans/2026-09-25-core-loop-v2.md`. 51 tests, smoke 19/19.
+  - [ ] **Merge + deploy:** Marco OKs → merge `core-loop-v2` to `main` (auto-deploys prod) → `npm run smoke -- https://six-degrees-topaz.vercel.app`
+  - [ ] **Motion values to confirm (Marco):** `lib/motion.ts` — target pulse 1200ms, connector draw 450ms, bounce 1000ms/100ms stagger (Wordle's), settle 500ms. Shake 600ms (Wordle) in `app/globals.css`.
+  - [ ] **Rules question (Marco):** voice cameos in long-running animated TV (Family Guy, American Dad!, The Simpsons via `aggregate_credits`) count as links and show up in best routes. Keep, or exclude animation-genre TV guest roles?
+  - [ ] Fair-puzzle floor `FAIR_MIN_VOTES = 1000` (`lib/solver/puzzle.ts`) — tune after real play
+  - [ ] Monthly: `npm run build:graph` right after `build:pool` + commit `data/costar-graph.json` (graph must match the pool)
+  - [ ] Design pass items found while building: the closing connector draws beside the pinned target, not across the gap (1440); start card scrolls off-screen at 375 on round start; results layout is plain lists
+  - [ ] Later: daily puzzle = `pickPuzzle` with a date-seeded rng; Hard mode needs a wider pool (par 3+ is 0.02% of the famous pool); first-visit how-to modal (Wordle pattern)
 - [ ] **Design pass** — 3 directions artifact → build chosen; connectors, results layout, a11y batch → Prompt 5
 - [ ] **Launch + money** — email TMDb re commercial license EARLY (terms forbid commercial use without agreement); daily puzzle infra; phased plan → Prompt 4
-- [ ] Commit or delete untracked `AGENTS.md`
 
 ## Parked (from DESIGN-AUDIT-2026-08.md, folded into prompts above)
 - Themed pools, async competitive mode, auth/leaderboards
