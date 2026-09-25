@@ -51,6 +51,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "SELECT_MEDIA":
       if (state.phase !== "playing" || state.closing || state.searchMode !== "media") return state;
+      if (state.chain.at(-1)?.id !== action.fromActorId) return state; // stale validation reply
       return {
         ...state,
         chain: [
@@ -71,6 +72,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "SELECT_PERSON": {
       if (state.phase !== "playing" || state.closing || state.searchMode !== "person") return state;
+      if (state.selectedMedia?.id !== action.mediaId) return state; // stale validation reply
       // Reaching the target is CLOSE_CHAIN's job (the tap-to-close beat).
       if (state.actorPair && action.person.id === state.actorPair.end.id) return state;
       return {
@@ -185,7 +187,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     // The player tapped the target: the chain is complete. Stay on the playing
     // screen for the close-the-chain beat; FINISH moves to results after it.
     case "CLOSE_CHAIN": {
-      if (state.phase !== "playing" || state.closing || state.searchMode !== "person" || !state.actorPair) {
+      if (
+        state.phase !== "playing" ||
+        state.closing ||
+        state.searchMode !== "person" ||
+        !state.actorPair ||
+        state.selectedMedia?.id !== action.mediaId
+      ) {
         return state;
       }
       const target = state.actorPair.end;

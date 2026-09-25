@@ -82,9 +82,9 @@ export function ChainBuilder() {
 
   useEffect(() => () => clearTimeout(finishRef.current?.timer), []);
 
-  const closeChain = () => {
-    if (!actorPair || closing || finishRef.current) return;
-    dispatch({ type: "CLOSE_CHAIN", now: Date.now() });
+  const closeChain = (mediaId: number) => {
+    if (!actorPair || closing || finishRef.current || selectedMedia?.id !== mediaId) return;
+    dispatch({ type: "CLOSE_CHAIN", now: Date.now(), mediaId });
     playWinSound();
     // The best route for results loads during the beat (graph-only, ~ms).
     const route = fetchRoute(actorPair.start.id, actorPair.end.id)
@@ -112,7 +112,7 @@ export function ChainBuilder() {
       }
       playCardSound();
       setReachableMediaId(reachesTarget ? media.id : null);
-      dispatch({ type: "SELECT_MEDIA", media });
+      dispatch({ type: "SELECT_MEDIA", media, fromActorId: currentActor.id });
     } catch {
       reject("Connection failed — check your internet and try again");
     }
@@ -123,7 +123,7 @@ export function ChainBuilder() {
     const isTarget = person.id === actorPair.end.id;
     // Typing the target's name works like tapping their card.
     if (isTarget && reachableMediaId === selectedMedia.id) {
-      closeChain();
+      closeChain(selectedMedia.id);
       return;
     }
     try {
@@ -133,11 +133,11 @@ export function ChainBuilder() {
         return;
       }
       if (isTarget) {
-        closeChain();
+        closeChain(selectedMedia.id);
         return;
       }
       playCardSound();
-      dispatch({ type: "SELECT_PERSON", person });
+      dispatch({ type: "SELECT_PERSON", person, mediaId: selectedMedia.id });
     } catch {
       reject("Connection failed — check your internet and try again");
     }
@@ -241,8 +241,9 @@ export function ChainBuilder() {
         targetActor={actorPair?.end ?? { name: "", id: 0 }}
         isComplete={closing}
         targetState={targetReachable ? "reachable" : "idle"}
-        onCloseChain={closeChain}
+        onCloseChain={() => selectedMedia && closeChain(selectedMedia.id)}
         onUndo={() => {
+          if (isValidating) return;
           playRemoveSound();
           dispatch({ type: "UNDO_LAST" });
           setError(null);
@@ -279,7 +280,8 @@ export function ChainBuilder() {
             dispatch({ type: "RESET_CHAIN", now: Date.now() });
             setError(null);
           }}
-          className="flex items-center gap-1.5 text-xs uppercase tracking-[0.15em] px-4 py-1.5 rounded-full transition-colors self-center mb-20 md:mb-2"
+          disabled={isValidating}
+          className="flex items-center gap-1.5 text-xs uppercase tracking-[0.15em] px-4 py-1.5 rounded-full transition-colors self-center mb-20 md:mb-2 disabled:opacity-50"
           style={{
             color: "var(--color-text-secondary)",
             border: "1px solid var(--color-border)",

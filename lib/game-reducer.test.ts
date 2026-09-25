@@ -73,11 +73,11 @@ test("PAUSE outside play changes nothing", () => {
 
 // --- Item 3: stuck exits ---
 
-const withFilm = () => gameReducer(started(), { type: "SELECT_MEDIA", media: FILM });
+const withFilm = () => gameReducer(started(), { type: "SELECT_MEDIA", media: FILM, fromActorId: 1 });
 
 test("RESET_CHAIN resets the clock but keeps what hints cost", () => {
   let s = gameReducer(started(), { type: "USE_HINT_FILMS", actorId: 1, films: [FILM] });
-  s = gameReducer(s, { type: "SELECT_MEDIA", media: FILM });
+  s = gameReducer(s, { type: "SELECT_MEDIA", media: FILM, fromActorId: 1 });
   s = gameReducer(s, { type: "PAUSE_TIMER", now: 1500 });
   s = gameReducer(s, { type: "RESET_CHAIN", now: 4000 });
   assert.deepEqual(
@@ -103,9 +103,9 @@ test("each hint costs one", () => {
 
 test("hints clear when the chain moves to a new actor", () => {
   let s = gameReducer(started(), { type: "USE_HINT_FILMS", actorId: 1, films: [FILM] });
-  s = gameReducer(s, { type: "SELECT_MEDIA", media: FILM });
+  s = gameReducer(s, { type: "SELECT_MEDIA", media: FILM, fromActorId: 1 });
   assert.equal(s.hintFilms?.actorId, 1, "still on actor 1 while picking a costar");
-  s = gameReducer(s, { type: "SELECT_PERSON", person: { id: 3, name: "C", profilePath: null } });
+  s = gameReducer(s, { type: "SELECT_PERSON", person: { id: 3, name: "C", profilePath: null }, mediaId: FILM.id });
   assert.deepEqual([s.hintFilms, s.hintLink], [null, null]);
 });
 
@@ -129,26 +129,26 @@ test("a link hint goes stale when the picked film changes", () => {
   let s = gameReducer(withFilm(), link);
   assert.equal(gameReducer(s, { type: "UNDO_LAST" }).hintLink, null, "undoing the film drops it");
   s = gameReducer(started(), link);
-  assert.equal(gameReducer(s, { type: "SELECT_MEDIA", media: FILM }).hintLink, null, "picking a film drops it");
+  assert.equal(gameReducer(s, { type: "SELECT_MEDIA", media: FILM, fromActorId: 1 }).hintLink, null, "picking a film drops it");
 });
 
 // --- Item 4: tap the target to close the chain ---
 
 test("CLOSE_CHAIN adds the target and stops the clock, but stays in play for the beat", () => {
-  const s = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000 });
+  const s = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000, mediaId: FILM.id });
   assert.deepEqual([s.phase, s.closing, s.endTime, s.chain.at(-1)?.id, s.searchMode], ["playing", true, 7000, 2, "media"]);
 });
 
 test("CLOSE_CHAIN needs a picked film and only fires once", () => {
   const s0 = started();
-  assert.equal(gameReducer(s0, { type: "CLOSE_CHAIN", now: 1 }), s0);
-  const closed = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000 });
-  assert.equal(gameReducer(closed, { type: "CLOSE_CHAIN", now: 8000 }), closed);
+  assert.equal(gameReducer(s0, { type: "CLOSE_CHAIN", now: 1, mediaId: FILM.id }), s0);
+  const closed = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000, mediaId: FILM.id });
+  assert.equal(gameReducer(closed, { type: "CLOSE_CHAIN", now: 8000, mediaId: FILM.id }), closed);
 });
 
 test("CLOSE_CHAIN folds an open pause into paused time", () => {
   let s = gameReducer(withFilm(), { type: "PAUSE_TIMER", now: 6000 });
-  s = gameReducer(s, { type: "CLOSE_CHAIN", now: 7000 });
+  s = gameReducer(s, { type: "CLOSE_CHAIN", now: 7000, mediaId: FILM.id });
   assert.deepEqual([s.pausedMs, s.pauseStartedAt], [1000, null]);
 });
 
@@ -156,19 +156,43 @@ test("FINISH only follows CLOSE_CHAIN", () => {
   const s0 = withFilm();
   assert.equal(gameReducer(s0, { type: "FINISH", bestRoute: null }), s0);
   const route = [{ type: "actor" as const, id: 1, name: "A" }];
-  const s = gameReducer(gameReducer(s0, { type: "CLOSE_CHAIN", now: 7000 }), { type: "FINISH", bestRoute: route });
+  const s = gameReducer(gameReducer(s0, { type: "CLOSE_CHAIN", now: 7000, mediaId: FILM.id }), { type: "FINISH", bestRoute: route });
   assert.deepEqual([s.phase, s.endReason, s.closing, s.bestRoute], ["results", "won", false, route]);
 });
 
 test("naming the target in search doesn't skip the close", () => {
   const s0 = withFilm();
-  assert.equal(gameReducer(s0, { type: "SELECT_PERSON", person: { id: 2, name: "B", profilePath: null } }), s0);
+  assert.equal(gameReducer(s0, { type: "SELECT_PERSON", person: { id: 2, name: "B", profilePath: null }, mediaId: FILM.id }), s0);
 });
 
 test("nothing else moves while the chain is closing", () => {
-  const closed = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000 });
+  const closed = gameReducer(withFilm(), { type: "CLOSE_CHAIN", now: 7000, mediaId: FILM.id });
   assert.equal(gameReducer(closed, { type: "GIVE_UP", bestRoute: null, now: 8000 }), closed);
   assert.equal(gameReducer(closed, { type: "UNDO_LAST" }), closed);
   assert.equal(gameReducer(closed, { type: "RESET_CHAIN", now: 8000 }), closed);
-  assert.equal(gameReducer(closed, { type: "SELECT_MEDIA", media: FILM }), closed);
+  assert.equal(gameReducer(closed, { type: "SELECT_MEDIA", media: FILM, fromActorId: 1 }), closed);
+});
+
+// --- Review fix: late validation replies can't add links checked against another actor ---
+
+test("a pick validated against an actor who is no longer last is dropped", () => {
+  let s = gameReducer(withFilm(), { type: "SELECT_PERSON", person: { id: 3, name: "C", profilePath: null }, mediaId: FILM.id });
+  // The player hit Start over while a check for actor 3 was in flight...
+  s = gameReducer(s, { type: "RESET_CHAIN", now: 5000 });
+  // ...and the reply for actor 3 arrives late.
+  const late = gameReducer(s, { type: "SELECT_MEDIA", media: { ...FILM, id: 10 }, fromActorId: 3 });
+  assert.equal(late, s);
+});
+
+test("a costar validated against a film that is no longer picked is dropped", () => {
+  const s = gameReducer(withFilm(), { type: "UNDO_LAST" });
+  const again = gameReducer(s, { type: "SELECT_MEDIA", media: { ...FILM, id: 11 }, fromActorId: 1 });
+  const late = gameReducer(again, { type: "SELECT_PERSON", person: { id: 3, name: "C", profilePath: null }, mediaId: FILM.id });
+  assert.equal(late, again);
+});
+
+test("closing the chain needs the film the target was checked against", () => {
+  const s = withFilm();
+  assert.equal(gameReducer(s, { type: "CLOSE_CHAIN", now: 1, mediaId: 999 }), s);
+  assert.equal(gameReducer(s, { type: "CLOSE_CHAIN", now: 1, mediaId: FILM.id }).closing, true);
 });

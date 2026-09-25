@@ -47,7 +47,10 @@ export function shortestRoute(g: Graph, fromId: number, toId: number): Route | n
     const next = expand(g, forward ? fFront : bFront, seen);
 
     // Every meeting in this level: shortest first, then best-known titles, then
-    // lowest actor index.
+    // lowest actor index. The first level with a meeting is optimal whichever
+    // side expanded: both sides are complete to their depths (k, D) and were
+    // disjoint, so no route shorter than k + D + 1 exists, and every meeting
+    // found here is at most that long.
     let best: { meet: number; len: number; votes: number } | null = null;
     for (const m of next) {
       if (!other.has(m)) continue;

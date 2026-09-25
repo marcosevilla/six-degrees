@@ -115,15 +115,17 @@ export interface GameState {
 export type GameAction =
   | { type: "BEGIN_REVEAL"; difficulty: Difficulty }
   | { type: "START_GAME"; pair: ActorPair; difficulty: Difficulty; par: number; now: number }
-  | { type: "SELECT_MEDIA"; media: MediaResult }
-  | { type: "SELECT_PERSON"; person: PersonResult }
+  // Picks name what they were validated against, so a reply that arrives after
+  // Start over / Undo can't add a link checked against someone else.
+  | { type: "SELECT_MEDIA"; media: MediaResult; fromActorId: number }
+  | { type: "SELECT_PERSON"; person: PersonResult; mediaId: number }
   | { type: "UNDO_LAST" }
   | { type: "RESET_CHAIN"; now: number }
   | { type: "PAUSE_TIMER"; now: number }
   | { type: "RESUME_TIMER"; now: number }
   | { type: "USE_HINT_FILMS"; actorId: number; films: MediaResult[] }
   | { type: "USE_HINT_LINK"; actorId: number; links: ChainLink[] }
-  | { type: "CLOSE_CHAIN"; now: number }
+  | { type: "CLOSE_CHAIN"; now: number; mediaId: number }
   | { type: "FINISH"; bestRoute: ChainLink[] | null }
   | { type: "GIVE_UP"; bestRoute: ChainLink[] | null; now: number }
   | { type: "PLAY_AGAIN" };

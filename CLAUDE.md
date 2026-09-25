@@ -280,7 +280,7 @@ Before ending any session:
 ## Current State
 _Updated by Claude — 2026-09-25 (Session 6, relaunch step 3: core loop v2)_
 - **Branch `core-loop-v2`, NOT merged or deployed.** Production (https://six-degrees-topaz.vercel.app) still runs session 5. Merge to `main` auto-deploys; then `npm run smoke -- https://six-degrees-topaz.vercel.app`.
-- **Verified locally:** `npm test` 51/51, `npm run lint` 0 errors (11 warnings), `npm run build` clean, `npm run smoke -- http://localhost:3100` 19/19. Every build item played in Playwright at 375 and 1440 (Easy + Medium; wins, give-ups, hints, share links, Play Again).
+- **Verified locally:** `npm test` 54/54, `npm run lint` 0 errors (11 warnings), `npm run build` clean, `npm run smoke -- http://localhost:3100` 19/19. Every build item played in Playwright at 375 and 1440 (Easy + Medium; wins, give-ups, hints, share links, Play Again).
 - **This session (commits `7da0df8`…):** spec + plan in `docs/superpowers/`; costar graph + solver (`lib/solver/`, `scripts/build-graph.ts`, `data/costar-graph.json`); `/api/puzzle`, `/api/route`, `/api/tmdb/filmography`; verify-pair deleted; par in state; par-relative scoring + paused clock + Wordle shake on rejected picks; stuck exits (reset clock, hint ladder, show me a route); tap-to-close win moment (`lib/motion.ts`); results route comparison + share line; fair-puzzle floor; exact-match search ranking; Play Again through the reveal.
 - **Open for Marco:** confirm motion values (`lib/motion.ts`); rules call on animated-TV voice cameos; merge + deploy. Details in `NEXT.md`.
 - **Research used:** `~/Obsidian/marcowits/resources/research/2026-09-25-daily-web-game-patterns.md` (Wordle/Connections/Strands timings, share formats).
