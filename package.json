@@ -8,7 +8,9 @@
     "start": "next start",
     "smoke": "npx --yes tsx scripts/smoke.ts",
     "build:pool": "npx --yes tsx scripts/build-pool.ts",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "npx --yes tsx --test \"lib/**/*.test.ts\"",
+    "build:graph": "npx --yes tsx scripts/build-graph.ts"
   },
   "dependencies": {
     "agentation": "^2.2.0",

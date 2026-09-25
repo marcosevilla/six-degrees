@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { useGame } from "@/lib/GameContext";
 import { getChainSteps, formatTime, getScoreLabel } from "@/lib/scoring";
-import { fetchActorPool, getRandomPair } from "@/lib/actor-pool";
-import { verifyPair } from "@/lib/tmdb";
 import { ChainDisplay } from "@/components/round/ChainDisplay";
-
-const MAX_RETRIES = 5;
 
 export function ResultsScreen() {
   const { state, dispatch } = useGame();
@@ -23,7 +19,7 @@ export function ResultsScreen() {
     : "";
 
   const shareUrl = actorPair
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/play?pair=${actorPair.start.id}-${actorPair.end.id}${difficulty ? `&d=${difficulty}` : ""}`
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/play?pair=${actorPair.start.id}-${actorPair.end.id}`
     : "";
 
   const handleShare = async () => {
@@ -41,29 +37,9 @@ export function ResultsScreen() {
     }
   };
 
-  const handlePlayAgain = async () => {
-    const pool = await fetchActorPool();
-    const diff = difficulty ?? "medium";
-    const matchFn =
-      diff === "easy"
-        ? (ms: number | null) => ms === 1
-        : diff === "medium"
-          ? (ms: number | null) => ms === 2
-          : (ms: number | null) => ms === null;
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const pair = getRandomPair(pool);
-      const result = await verifyPair(pair.start.id, pair.end.id);
-      if (matchFn(result.minSteps)) {
-        dispatch({ type: "PLAY_AGAIN" });
-        dispatch({ type: "START_GAME", pair, difficulty: diff });
-        return;
-      }
-    }
-    // Fallback
-    const pair = getRandomPair(pool);
-    dispatch({ type: "PLAY_AGAIN" });
-    dispatch({ type: "START_GAME", pair, difficulty: diff });
+  // Same path as the first round: the reveal deals a verified pair.
+  const handlePlayAgain = () => {
+    dispatch({ type: "BEGIN_REVEAL", difficulty: difficulty ?? "medium" });
   };
 
   return (

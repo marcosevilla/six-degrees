@@ -4,28 +4,40 @@ export const initialGameState: GameState = {
   phase: "home",
   difficulty: null,
   actorPair: null,
+  par: null,
   chain: [],
   searchMode: "media",
   selectedMedia: null,
   startTime: null,
   endTime: null,
+  pausedMs: 0,
+  pauseStartedAt: null,
+  hintsUsed: 0,
+  hintFilms: null,
+  hintLink: null,
+  closing: false,
+  bestRoute: null,
+  endReason: null,
 };
+
+// Every case guards its phase and returns the same state object when an action
+// makes no sense right now, so stray clicks and late network replies can't put
+// the game into an impossible state.
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "BEGIN_REVEAL":
-      return {
-        ...state,
-        phase: "revealing",
-        difficulty: action.difficulty,
-      };
+      if (state.phase !== "home" && state.phase !== "results") return state;
+      return { ...initialGameState, phase: "revealing", difficulty: action.difficulty };
 
     case "START_GAME":
+      if (state.phase !== "revealing") return state;
       return {
-        ...state,
+        ...initialGameState,
         phase: "playing",
         difficulty: action.difficulty,
         actorPair: action.pair,
+        par: action.par,
         chain: [
           {
             type: "actor",
@@ -34,10 +46,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             profilePath: action.pair.start.profilePath ?? null,
           },
         ],
-        searchMode: "media",
-        selectedMedia: null,
-        startTime: Date.now(),
-        endTime: null,
+        startTime: action.now,
       };
 
     case "SELECT_MEDIA":

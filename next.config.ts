@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // The solver routes read these at runtime with fs, so make sure they ship.
+  outputFileTracingIncludes: {
+    "/api/puzzle": ["./data/costar-graph.json", "./data/actor-pool.json"],
+    "/api/route": ["./data/costar-graph.json"],
+  },
   turbopack: {
     root: ".",
   },

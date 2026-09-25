@@ -198,7 +198,7 @@ export function ChainBuilder() {
         <button
           onClick={() => {
             playRemoveSound();
-            dispatch({ type: "RESET_CHAIN" });
+            dispatch({ type: "RESET_CHAIN", now: Date.now() });
             setError(null);
           }}
           className="flex items-center gap-1.5 text-xs uppercase tracking-[0.15em] px-4 py-1.5 rounded-full transition-colors self-center mb-20 md:mb-2"

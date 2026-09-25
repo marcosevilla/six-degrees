@@ -17,10 +17,6 @@ const DIFFICULTY_CONFIG: Record<
     label: "Medium",
     description: "One actor apart",
   },
-  hard: {
-    label: "Hard",
-    description: "No obvious connection",
-  },
 };
 
 export function HomeScreen() {

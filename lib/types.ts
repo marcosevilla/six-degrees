@@ -66,29 +66,64 @@ export type SearchMode = "media" | "person";
 
 export type GamePhase = "home" | "revealing" | "playing" | "results";
 
-export type Difficulty = "easy" | "medium" | "hard";
+// Difficulty is a par band: easy = par 1 (they share a title), medium = par 2.
+// There is no hard mode: with the famous pool only 0.03% of pairs are par 3+.
+export type Difficulty = "easy" | "medium";
 
 export interface ActorPair {
   start: PoolActor;
   end: PoolActor;
 }
 
+export type EndReason = "won" | "gaveUp";
+
+// Hint rung 1 for one actor: their five best-known titles.
+export interface HintFilms {
+  actorId: number;
+  films: MediaResult[];
+}
+
+// Hint rung 2+ for one actor: the next title and actor on the best route.
+export interface HintLink {
+  actorId: number;
+  links: ChainLink[];
+}
+
 export interface GameState {
   phase: GamePhase;
   difficulty: Difficulty | null;
   actorPair: ActorPair | null;
+  par: number | null;
   chain: ChainLink[];
   searchMode: SearchMode;
   selectedMedia: MediaResult | null;
   startTime: number | null;
   endTime: number | null;
+  // Time spent waiting on validation doesn't count against the player.
+  pausedMs: number;
+  pauseStartedAt: number | null;
+  hintsUsed: number;
+  hintFilms: HintFilms | null;
+  hintLink: HintLink | null;
+  // The target was tapped and the close-the-chain beat is playing.
+  closing: boolean;
+  bestRoute: ChainLink[] | null;
+  endReason: EndReason | null;
 }
 
+// Actions that touch time carry `now` so the reducer stays pure and testable.
 export type GameAction =
   | { type: "BEGIN_REVEAL"; difficulty: Difficulty }
-  | { type: "START_GAME"; pair: ActorPair; difficulty: Difficulty }
+  | { type: "START_GAME"; pair: ActorPair; difficulty: Difficulty; par: number; now: number }
   | { type: "SELECT_MEDIA"; media: MediaResult }
   | { type: "SELECT_PERSON"; person: PersonResult }
   | { type: "UNDO_LAST" }
-  | { type: "RESET_CHAIN" }
+  | { type: "RESET_CHAIN"; now: number }
+  | { type: "PAUSE_TIMER"; now: number }
+  | { type: "RESUME_TIMER"; now: number }
+  | { type: "USE_HINT_FILMS"; actorId: number; films: MediaResult[] }
+  | { type: "USE_HINT_LINK"; actorId: number; links: ChainLink[] }
+  | { type: "CLOSE_CHAIN"; now: number }
+  | { type: "FINISH"; bestRoute: ChainLink[] | null }
+  | { type: "GIVE_UP"; bestRoute: ChainLink[] | null; now: number }
   | { type: "PLAY_AGAIN" };

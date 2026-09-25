@@ -1,7 +1,7 @@
-// The one rulebook for what counts as a connection. Every route that decides
-// whether two people share a title (verify-pair for difficulty, validate for
-// gameplay, search for what players can pick) goes through these helpers, so
-// classification and play can never disagree again.
+// The one rulebook for what counts as a connection. Everything that decides
+// whether two people share a title (the costar graph build, the route bridge,
+// validate for gameplay, search for what players can pick) goes through these
+// helpers, so par and play can never disagree.
 
 export const TMDB_BASE = "https://api.themoviedb.org/3";
 

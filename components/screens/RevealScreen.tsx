@@ -2,18 +2,10 @@
 
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { useGame } from "@/lib/GameContext";
-import { fetchActorPool, getRandomPair, getProfileUrl } from "@/lib/actor-pool";
-import { verifyPair } from "@/lib/tmdb";
+import { getProfileUrl } from "@/lib/actor-pool";
+import { fetchPuzzle, type Puzzle } from "@/lib/tmdb";
 import { playFlipSound } from "@/lib/sounds";
-import type { ActorPair, Difficulty } from "@/lib/types";
-
-const MAX_RETRIES = 8;
-
-const DIFFICULTY_MATCH: Record<Difficulty, (ms: number | null) => boolean> = {
-  easy: (ms) => ms === 1,
-  medium: (ms) => ms === 2,
-  hard: (ms) => ms === null,
-};
+import type { ActorPair } from "@/lib/types";
 
 type RevealPhase =
   | "loading"
@@ -22,39 +14,45 @@ type RevealPhase =
   | "title"
   | "slide-out";
 
-export function RevealScreen() {
+interface RevealScreenProps {
+  // A shared pair that /api/puzzle already verified; skips dealing a new one.
+  presetPuzzle?: Puzzle | null;
+  onStarted?: () => void;
+}
+
+export function RevealScreen({ presetPuzzle = null, onStarted }: RevealScreenProps) {
   const { state, dispatch } = useGame();
   const difficulty = state.difficulty ?? "medium";
 
   const [pair, setPair] = useState<ActorPair | null>(null);
+  const [par, setPar] = useState<number | null>(null);
+  const [dealError, setDealError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState<RevealPhase>("loading");
   const [imagesReady, setImagesReady] = useState(false);
   const [slideActive, setSlideActive] = useState(false);
-  const hasStarted = useRef(false);
   const loadedCount = useRef(0);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
 
-  // --- Pair finding (runs on mount) ---
+  // --- Deal a verified pair (the server solves par; no unverified fallback) ---
   useEffect(() => {
-    if (hasStarted.current) return;
-    hasStarted.current = true;
-
-    (async () => {
-      const pool = await fetchActorPool();
-      const matchFn = DIFFICULTY_MATCH[difficulty];
-
-      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        const candidate = getRandomPair(pool);
-        const result = await verifyPair(candidate.start.id, candidate.end.id);
-        if (matchFn(result.minSteps)) {
-          setPair(candidate);
-          return;
-        }
-      }
-      setPair(getRandomPair(pool));
-    })();
-  }, [difficulty]);
+    let cancelled = false;
+    const deal = presetPuzzle ? Promise.resolve(presetPuzzle) : fetchPuzzle(difficulty);
+    deal.then(
+      (p) => {
+        if (cancelled) return;
+        setPair({ start: p.start, end: p.target });
+        setPar(p.par);
+      },
+      () => {
+        if (!cancelled) setDealError(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [difficulty, presetPuzzle, attempt]);
 
   // --- Preload images once pair is found ---
   useEffect(() => {
@@ -87,7 +85,7 @@ export function RevealScreen() {
 
   // --- Animation sequence ---
   useEffect(() => {
-    if (!pair || !imagesReady) return;
+    if (!pair || par === null || !imagesReady) return;
 
     const timeline: { p: RevealPhase; delay: number }[] = [
       { p: "flip-left", delay: 500 },
@@ -107,14 +105,15 @@ export function RevealScreen() {
 
     // Dispatch START_GAME after slide completes
     const startTimer = setTimeout(() => {
-      dispatch({ type: "START_GAME", pair, difficulty });
+      dispatch({ type: "START_GAME", pair, difficulty, par, now: Date.now() });
+      onStarted?.();
     }, 5400);
 
     return () => {
       timers.forEach(clearTimeout);
       clearTimeout(startTimer);
     };
-  }, [pair, imagesReady, difficulty, dispatch]);
+  }, [pair, par, imagesReady, difficulty, dispatch, onStarted]);
 
   // --- Compute and apply slide transforms ---
   useLayoutEffect(() => {
@@ -236,7 +235,27 @@ export function RevealScreen() {
 
       {/* Bottom area — matches ChainBuilder reset button zone */}
       <div className="text-center mb-20 md:mb-2">
-        {phase === "loading" && (
+        {dealError ? (
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+              Couldn&apos;t deal a pair.
+            </p>
+            <button
+              onClick={() => {
+                setDealError(false);
+                setAttempt((n) => n + 1);
+              }}
+              className="px-8 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
+              style={{
+                background: "transparent",
+                color: "var(--color-text-secondary)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : phase === "loading" && (
           <p
             className="text-xs uppercase tracking-[0.2em] animate-pulse"
             style={{ color: "var(--color-text-secondary)" }}

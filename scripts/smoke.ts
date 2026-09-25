@@ -153,10 +153,46 @@ const checks: Check[] = [
     },
   },
   {
-    name: "verify-pair: DiCaprio and Cillian Murphy are 1 step (Inception)",
+    name: "puzzle: easy deals a verified par-1 pool pair",
     run: async () => {
-      const { body } = await get("/api/tmdb/verify-pair?startId=6193&endId=2037");
-      assert(body.connectable === true && body.minSteps === 1, JSON.stringify(body));
+      const { status, body } = await get("/api/puzzle?difficulty=easy");
+      assert(status === 200 && body.par === 1 && body.start?.id && body.target?.id, `${status} ${JSON.stringify(body)}`);
+    },
+  },
+  {
+    name: "puzzle: medium deals a verified par-2 pool pair",
+    run: async () => {
+      const { status, body } = await get("/api/puzzle?difficulty=medium");
+      assert(status === 200 && body.par === 2 && body.start?.id !== body.target?.id, `${status} ${JSON.stringify(body)}`);
+    },
+  },
+  {
+    name: "puzzle: shared pair DiCaprio → Cillian Murphy is par 1 (Inception)",
+    run: async () => {
+      const { status, body } = await get("/api/puzzle?start=6193&target=2037");
+      assert(status === 200 && body.par === 1, `${status} ${JSON.stringify(body)} (if one left the pool, pick a new pair)`);
+    },
+  },
+  {
+    name: "puzzle: a non-pool id is refused, never swapped for a random pair",
+    run: async () => {
+      const { status } = await get("/api/puzzle?start=6193&target=1");
+      assert(status === 404, `got ${status}`);
+    },
+  },
+  {
+    name: "route: DiCaprio → Cillian Murphy goes through one title",
+    run: async () => {
+      const { body } = await get("/api/route?from=6193&to=2037");
+      assert(body.route?.par === 1 && body.route.steps.length === 3, JSON.stringify(body));
+    },
+  },
+  {
+    name: "filmography: DiCaprio's top 5 are eligible titles",
+    run: async () => {
+      const { body } = await get("/api/tmdb/filmography?id=6193");
+      assert(body.films?.length === 5, `got ${body.films?.length}`);
+      assert(!body.films.some((f: any) => f.id === 1489 && f.mediaType === "tv"), "talk show offered");
     },
   },
 ];

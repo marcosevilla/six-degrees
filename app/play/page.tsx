@@ -4,20 +4,15 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { Game } from "@/components/Game";
-import { fetchPerson } from "@/lib/tmdb";
-import type { ActorPair, Difficulty } from "@/lib/types";
+import { fetchPuzzleForPair, type Puzzle } from "@/lib/tmdb";
 
 function PlayContent() {
   const searchParams = useSearchParams();
-  const [pair, setPair] = useState<ActorPair | null>(null);
+  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Difficulty comes from the pair's par, so an old ?d= param is ignored.
   const pairParam = searchParams.get("pair");
-  const difficultyParam = searchParams.get("d") as Difficulty | null;
-  const difficulty: Difficulty =
-    difficultyParam && ["easy", "medium", "hard"].includes(difficultyParam)
-      ? difficultyParam
-      : "medium";
 
   useEffect(() => {
     if (!pairParam) {
@@ -37,14 +32,11 @@ function PlayContent() {
       return;
     }
 
-    Promise.all([fetchPerson(startId), fetchPerson(endId)]).then(
-      ([start, end]) => {
-        if (!start || !end) {
-          setError("Could not find one or both actors");
-          return;
-        }
-        setPair({ start, end });
-      }
+    // The server checks the pair against the graph. A pair it can't connect
+    // is refused, never swapped for a random one.
+    fetchPuzzleForPair(startId, endId).then(
+      (p) => (p ? setPuzzle(p) : setError("This link's puzzle can't be played.")),
+      () => setError("Couldn't load this puzzle. Check your connection and try again."),
     );
   }, [pairParam]);
 
@@ -61,13 +53,13 @@ function PlayContent() {
           className="px-6 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
           style={{ background: "var(--color-accent)", color: "#fff" }}
         >
-          Play a random pair
+          Play a new puzzle
         </Link>
       </div>
     );
   }
 
-  if (!pair) {
+  if (!puzzle) {
     return (
       <div className="min-h-dvh flex items-center justify-center">
         <p
@@ -80,7 +72,7 @@ function PlayContent() {
     );
   }
 
-  return <Game initialPair={pair} initialDifficulty={difficulty} />;
+  return <Game initialPuzzle={puzzle} />;
 }
 
 export default function PlayPage() {

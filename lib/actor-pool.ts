@@ -1,4 +1,4 @@
-import { PoolActor, ActorPair } from "./types";
+import { PoolActor } from "./types";
 
 export const CHAIN_SOFT_LIMIT = 10;
 
@@ -24,18 +24,4 @@ export async function fetchActorPool(): Promise<PoolActor[]> {
   const data = await res.json();
   _pool = data.actors || [];
   return _pool!;
-}
-
-export function getRandomPair(pool: PoolActor[]): ActorPair {
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  return {
-    start: shuffled[0],
-    end: shuffled[1],
-  };
-}
-
-// Stub for future daily puzzle — deterministic pair from date seed
-export function getPairForDate(_date: Date, pool: PoolActor[]): ActorPair {
-  // TODO: implement seed-based selection
-  return getRandomPair(pool);
 }
