@@ -3,8 +3,12 @@
 //   npx tsx scripts/smoke.ts                      # local dev on :3005
 //   npx tsx scripts/smoke.ts https://<preview>.vercel.app
 //
-// Preview deployments behind Vercel Authentication need a bypass token:
-//   SMOKE_BYPASS=<Protection Bypass for Automation secret> npx tsx scripts/smoke.ts <url>
+// Preview deployments sit behind Vercel Authentication. The project already
+// has a Protection Bypass for Automation secret; `vercel curl --debug` prints
+// it, so this pulls it into the env without echoing it:
+//   export SMOKE_BYPASS=$(vercel curl /api/tmdb/person?id=287 --deployment <url> --yes --debug 2>&1 \
+//     | grep -o 'x-vercel-protection-bypass: [A-Za-z0-9_-]*' | head -1 | awk '{print $2}')
+//   npx tsx scripts/smoke.ts <url>
 
 const base = (process.argv[2] ?? "http://localhost:3005").replace(/\/$/, "");
 const bypass = process.env.SMOKE_BYPASS;
