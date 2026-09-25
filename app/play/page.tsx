@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { Game } from "@/components/Game";
@@ -55,13 +56,13 @@ function PlayContent() {
         <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
           {error}
         </p>
-        <a
+        <Link
           href="/"
           className="px-6 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
           style={{ background: "var(--color-accent)", color: "#fff" }}
         >
           Play a random pair
-        </a>
+        </Link>
       </div>
     );
   }
