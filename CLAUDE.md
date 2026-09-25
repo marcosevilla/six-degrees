@@ -21,7 +21,10 @@ A public actor-connection game. Given two random actors, build a chain of movies
 - **Turbopack root detection** — There's a `package-lock.json` at `~/` that confuses turbopack. Fixed via `turbopack: { root: "." }` in `next.config.ts`. Don't remove this.
 - **Turbopack cache corruption** — If the server crashes with "corrupted database" panics, kill the process, `rm -rf .next`, wait a beat, then restart. Don't race the delete and start.
 - **Dev server buffering** — If the page buffers indefinitely, kill the server, delete `.next/`, and restart fresh.
-- **TMDb pool cache** — The actor pool is cached in server module scope (24h TTL). Restarting the dev server clears it. First request after restart is slow (~5-10s) while it fetches from TMDb.
+- **Actor pool is a committed file** — `data/actor-pool.json`, built by `npm run build:pool`. The pool route makes no TMDb calls. Rebuild at least monthly; TMDb caps cached data at 6 months and `npm run smoke` fails once the file is 180+ days old.
+- **One rulebook** — every "does this count as a connection?" decision goes through `lib/tmdb-rules.ts`. Never filter credits inline in a route; that split is how the Kimmel exploit happened.
+- **Preview deploys are behind Vercel Authentication** — to smoke-test one, pull the bypass secret via `vercel curl --debug` (recipe at the top of `scripts/smoke.ts`).
+- **ESLint 10 + eslint-plugin-react** — the React version must stay pinned in `eslint.config.mjs`; auto-detect crashes on ESLint 10.
 
 ## Tech Stack
 - **Framework**: Next.js 16 (App Router, Turbopack)
@@ -41,10 +44,10 @@ app/
   page.tsx                      # Renders <Game />
   globals.css                   # Tailwind + CSS vars + animations + grain overlay + reduced-motion
   api/tmdb/
-    search/route.ts             # Search movies, TV, actors via TMDb
+    search/route.ts             # Search movies, TV, actors via TMDb (ineligible titles filtered out)
     credits/route.ts            # Get cast list for a movie/show
     validate/route.ts           # Validate actor↔movie connection
-    pool/route.ts               # Dynamic actor pool (top 200 from TMDb, filtered)
+    pool/route.ts               # Serves data/actor-pool.json (static, no TMDb calls)
     verify-pair/route.ts        # Verify pair connectability + difficulty classification
     person/route.ts             # Look up actor by TMDb ID (for share links)
   play/
@@ -70,6 +73,16 @@ lib/
   game-reducer.ts               # useReducer: all game state transitions
   GameContext.tsx                # React Context provider
   tmdb.ts                       # Client-side fetch helpers (search, validate, verifyPair, fetchPerson)
+  tmdb-rules.ts                 # THE rulebook: eligible titles, acting roles, credit keys, cast paths
+  api-cache.ts                  # TMDb fetch revalidate windows, CDN cache headers, per-IP rate limit
+scripts/
+  build-pool.ts                 # npm run build:pool → data/actor-pool.json
+  smoke.ts                      # npm run smoke -- <baseUrl>: every route + exploit regression checks
+data/
+  actor-pool.json               # Committed pool snapshot (400 actors, generatedAt)
+  pool-overrides.json           # Marco's include/exclude list for the pool
+public/
+  tmdb-logo-short.svg           # Official TMDb wordmark for the required attribution
 hooks/
   useDebounce.ts                # 300ms debounce for search
 VIRALITY-RESEARCH.md            # Game monetization + virality research (Wordle case study, growth playbook)
@@ -96,15 +109,22 @@ Home (pick difficulty) → Reveal (card flip animation) → Playing (random pair
 ```
 
 ## Actor Pool
-- **Source**: TMDb `/person/popular` endpoint, fetched dynamically on app start
-- **Size**: 200 actors
-- **Filters**:
-  - `known_for_department === "Acting"`
-  - Must have a profile photo
-  - At least 2 English-language `known_for` entries
-  - At least 2 `known_for` entries with 3,000+ votes (mainstream productions)
-- **Caching**: Server-side module cache (24h TTL) + client-side module cache (persists across renders)
-- **Pool includes `profilePath`** from TMDb, so bookend cards show actor photos without extra API calls
+- **Source**: `scripts/build-pool.ts` → committed `data/actor-pool.json` (400 actors). Same pool on every server, so daily puzzles can depend on it.
+- **Ranking ("reach")**: billed cast (top 10) of the 500 most-voted English films, 100 most-voted films of the last 5 years, and 200 most-voted English shows. Each actor earns the title's vote count, weighted by billing order (`1 / (1 + order × 0.25)`), halved for voice-only roles, plus up to +30% for current TMDb popularity. Must have a photo and `known_for_department === "Acting"`.
+- **Overrides**: `data/pool-overrides.json` `include` / `exclude` by TMDb id. Seeded with Nicole Kidman, Jackie Chan, Jenna Ortega (the ranking misses stars whose hits aren't blockbusters). Sydney Sweeney and Austin Butler are also missing — add if wanted.
+- **Refresh**: `npm run build:pool` monthly, commit the JSON. TMDb's 6-month cache limit is enforced by the smoke test.
+- **Known effect**: a famous pool is highly connected. 20 random pairs → 8 easy / 12 medium / 0 hard, so Hard mode now nearly always hits the unverified fallback until the step 3 solver lands.
+
+## Connection Rules (`lib/tmdb-rules.ts`)
+- **Ineligible titles**: genres Documentary 99, News 10763, Reality 10764, Talk 10767, plus TV titles named like awards shows (TMDb leaves The Oscars ungenred). SNL is tagged News, so it's out too: an accepted loss.
+- **Non-acting credits**: character matching `self/himself/herself/themselves`, `archive`, or starting with `Host`. Catches awards-show presenters and archive compilations like *Final Cut: Ladies and Gentlemen*.
+- **Validate** fetches the title with `append_to_response` (genres + cast in one call) and returns `reason`: `excluded_title | not_in_cast | not_acting_role`.
+- **TV casts** use `aggregate_credits` everywhere (via `castPath`).
+
+## Caching & Limits (`lib/api-cache.ts`)
+- TMDb fetches: Next data cache, credits/person 3 days, search 1 day.
+- Responses: `s-maxage` 1 day (search 1 hour) + 7× stale-while-revalidate. Verified CDN HITs on preview. Errors are never cached.
+- Rate limit: per-IP in-memory token bucket, burst 60, 2/s. Per instance, so a speed bump, not a global quota.
 
 ## Difficulty System
 Difficulty determines how connected the randomly selected pair is:
@@ -222,7 +242,7 @@ All synthesized via Web Audio API — no audio files needed.
 ### Medium Priority (polish)
 - [x] Fix difficulty classifier — filter non-acting credits, key on `media_type:id`, sort by `vote_count` (2026-08-06)
 - [ ] Make Hard mode reliable — still ~1 in 14 pairs, so it usually exhausts the 8 attempts and hits the silent unverified fallback. Needs BFS with caching.
-- [ ] Add an `eslint.config.js` — eslint 10 is installed but linting never runs
+- [x] ESLint flat config (`eslint.config.mjs`) — `npm run lint` runs; 0 errors, 12 warnings (2026-09-25)
 - [ ] Update accent color on difficulty selection (not just on game start)
 - [ ] Increase `--color-text-secondary` to `#8A8A8A`+ for WCAG AA contrast
 - [ ] Add error/invalid sound for failed validation
@@ -245,17 +265,25 @@ Before ending any session:
 3. If any features are partially complete, describe what's left
 
 ## Current State
-_Updated by Claude — 2026-08-06 (Session 4)_
-- **Last worked on:** Shipping the stalled reveal screen, then fixing the difficulty classifier
-- **Live:** https://six-degrees-topaz.vercel.app — both commits deployed and verified in production
-- **This session completed:**
-  - Committed and shipped `RevealScreen` (`7c37b34`) — it had sat uncommitted since 2026-02-13 and was never deployed
-  - Fixed the difficulty classifier (`61f138f`) in `app/api/tmdb/verify-pair/route.ts`
-  - Added `.claude/launch.json` so the preview tool starts the dev server on port 3005
-- **The classifier bug (worth understanding before touching credits again):** TMDb `combined_credits` includes talk shows, awards ceremonies, documentaries and archive-footage compilations. Nearly every famous actor has been on Kimmel, and *Final Cut: Ladies and Gentlemen* (2012) is stitched from clips of thousands of films and credits every actor in them. The shared-credit check therefore matched almost any pair and returned `minSteps: 1`, making Easy over-triggered and often unsolvable while Medium/Hard almost never matched. Fix filters to real acting roles (`character` containing "self"/"archive", genres 10763/10764/10767), keys credits on `media_type:id` (movie 2034 = Training Day collided with tv 2034 = Drive), and sorts by `vote_count` before sampling since `combined_credits` is roughly chronological.
-- **Verified after the fix:** 14 random pool pairs → 4 easy / 9 medium / 1 hard (was effectively all-easy). Dinklage→Waltz 2 via Fassbender, Pugh→Blunt 1 via Oppenheimer, Stallone→Damon no longer a false easy. Played a full Easy round: Marsden→Urban, genuinely 1 step via *The Loft*.
-- **Known trap:** if all 8 pair-finding attempts miss, `RevealScreen` starts an **unverified** pair still wearing the requested difficulty label. A wrong-looking difficulty in gameplay may be this fallback, not a classifier verdict — hit `/api/tmdb/verify-pair` directly before diagnosing.
-- **Next priorities:** Hard mode is still rare (~1 in 14 pairs) so it often hits that silent fallback; a real fix needs BFS with caching. Then medium-priority polish (accent on difficulty select, WCAG contrast, error sound). ESLint 10 is installed but has no `eslint.config.js`, so linting never runs.
+_Updated by Claude — 2026-09-25 (Session 5, relaunch step 1: API hardening)_
+- **Live (production, unchanged):** https://six-degrees-topaz.vercel.app — still has the Kimmel exploit until this session's work is promoted.
+- **Verified preview:** https://six-degrees-mrib163l7-marco-sevilla-projects.vercel.app — `npm run smoke` 14/14.
+- **Tracker:** https://claude.ai/artifact/RDcTCkgjzBstWVz12XAYcH (see NEXT.md).
+- **This session completed (commits `e78b4d7`…`467d0c7`):**
+  - Closed the talk-show / awards-show / archive-footage exploit with one shared rulebook (`lib/tmdb-rules.ts`) used by validate, verify-pair, search and credits.
+  - `scripts/smoke.ts` (`npm run smoke -- <url>`).
+  - Replaced the trending `/person/popular` pool with the committed reach-ranked pool + overrides.
+  - TMDb attribution on the home screen (Marco's spec: short wordmark 12px, notice 10px `#8A8A8A`; the 8px gap and 340px max-width are placeholders).
+  - CDN + data-cache caching and a per-IP rate limit on all proxy routes.
+  - ESLint flat config; fixed the one real error (`<a href="/">` → `<Link>` in `app/play/page.tsx`).
+  - `AGENTS.md` is now a symlink to this file.
+- **Modified files:** `lib/tmdb-rules.ts` (new), `lib/api-cache.ts` (new), `app/api/tmdb/{validate,verify-pair,search,credits,person,pool}/route.ts`, `components/screens/HomeScreen.tsx`, `app/play/page.tsx`, `scripts/{smoke,build-pool}.ts` (new), `data/{actor-pool,pool-overrides}.json` (new), `public/tmdb-logo-short.svg` (new), `eslint.config.mjs` (new), `package.json`, `.gitignore`, `AGENTS.md`.
+- **Lint warnings left for later:** `react-hooks/set-state-in-effect` ×4 (ChainBuilder:26, SearchInput:36, RevealScreen:70, play/page:23), `<img>` vs `next/image` ×5, unused vars (search `popularity`, ChainCard `mediaType`), SearchInput combobox missing `aria-controls`/`aria-expanded` pairing, one unused expression (SearchInput:145).
+- **Next:** relaunch step 2 (name) then step 3 (solver + par). Hard mode is effectively gone with the famous pool until the solver exists.
+
+### Session 4 (2026-08-06)
+- Shipped `RevealScreen` (`7c37b34`) and fixed the difficulty classifier (`61f138f`): combined_credits includes talk shows, awards, documentaries and archive compilations, so nearly every pair looked 1 step apart. Verified 14 pairs → 4 easy / 9 medium / 1 hard at the time.
+- Known trap (still true): if all 8 pair-finding attempts miss, `RevealScreen` starts an **unverified** pair wearing the requested difficulty label.
 
 ### Session 3 (2026-02-10)
 - **Completed:**
