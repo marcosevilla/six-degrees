@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "smoke": "npx --yes tsx scripts/smoke.ts"
   },
   "dependencies": {
     "agentation": "^2.2.0",
