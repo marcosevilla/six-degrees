@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DAY, TMDB_CREDITS_TTL, cachedJson, rateLimit, tmdbCache } from "@/lib/api-cache";
 import {
   TMDB_BASE,
   CastMember,
@@ -9,6 +10,9 @@ import {
 } from "@/lib/tmdb-rules";
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey || apiKey === "your_api_key_here") {
     return NextResponse.json(
@@ -35,6 +39,7 @@ export async function GET(request: NextRequest) {
   // One call returns the title's genres and its cast together.
   const res = await fetch(
     `${TMDB_BASE}/${mediaType}/${mediaId}?api_key=${apiKey}&append_to_response=${castKey}`,
+    tmdbCache(TMDB_CREDITS_TTL),
   );
   if (!res.ok) {
     return NextResponse.json(
@@ -46,7 +51,7 @@ export async function GET(request: NextRequest) {
 
   const genreIds: number[] = (data.genres || []).map((g: { id: number }) => g.id);
   if (!isEligibleTitle(genreIds) || isAwardsShow(mediaType, data.name)) {
-    return NextResponse.json({ valid: false, reason: "excluded_title" });
+    return cachedJson({ valid: false, reason: "excluded_title" }, DAY);
   }
 
   const cast: CastMember[] = data[castKey]?.cast || [];
@@ -54,11 +59,11 @@ export async function GET(request: NextRequest) {
   const member = cast.find((c) => c.id === actorIdNum);
 
   if (!member) {
-    return NextResponse.json({ valid: false, reason: "not_in_cast" });
+    return cachedJson({ valid: false, reason: "not_in_cast" }, DAY);
   }
   if (!castMemberActs(member)) {
-    return NextResponse.json({ valid: false, reason: "not_acting_role" });
+    return cachedJson({ valid: false, reason: "not_acting_role" }, DAY);
   }
 
-  return NextResponse.json({ valid: true });
+  return cachedJson({ valid: true }, DAY);
 }

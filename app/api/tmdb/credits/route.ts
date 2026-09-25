@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DAY, TMDB_CREDITS_TTL, cachedJson, rateLimit, tmdbCache } from "@/lib/api-cache";
 import {
   TMDB_BASE,
   CastMember,
@@ -8,6 +9,9 @@ import {
 } from "@/lib/tmdb-rules";
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey || apiKey === "your_api_key_here") {
     return NextResponse.json(
@@ -30,7 +34,7 @@ export async function GET(request: NextRequest) {
   // TV uses aggregate_credits to get cast across all seasons
   const endpoint = `${TMDB_BASE}${castPath(toMediaType(mediaType), id)}?api_key=${apiKey}`;
 
-  const res = await fetch(endpoint);
+  const res = await fetch(endpoint, tmdbCache(TMDB_CREDITS_TTL));
   const data = await res.json();
 
   type Member = CastMember & { name: string; profile_path: string | null };
@@ -43,5 +47,5 @@ export async function GET(request: NextRequest) {
     }),
   );
 
-  return NextResponse.json({ cast });
+  return cachedJson({ cast }, DAY);
 }

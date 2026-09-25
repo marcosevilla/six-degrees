@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { HOUR, TMDB_SEARCH_TTL, cachedJson, rateLimit, tmdbCache } from "@/lib/api-cache";
 import { TMDB_BASE, isAwardsShow, isEligibleTitle } from "@/lib/tmdb-rules";
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey || apiKey === "your_api_key_here") {
     return NextResponse.json(
@@ -23,6 +27,7 @@ export async function GET(request: NextRequest) {
   if (type === "person") {
     const res = await fetch(
       `${TMDB_BASE}/search/person?api_key=${apiKey}&query=${encodedQuery}&include_adult=false`,
+      tmdbCache(TMDB_SEARCH_TTL),
     );
     const data = await res.json();
     const results = (data.results || [])
@@ -33,16 +38,18 @@ export async function GET(request: NextRequest) {
         name: p.name,
         profilePath: p.profile_path,
       }));
-    return NextResponse.json({ results });
+    return cachedJson({ results }, HOUR);
   }
 
   // type === "media": search both movies and TV in parallel
   const [movieRes, tvRes] = await Promise.all([
     fetch(
       `${TMDB_BASE}/search/movie?api_key=${apiKey}&query=${encodedQuery}&include_adult=false`,
+      tmdbCache(TMDB_SEARCH_TTL),
     ),
     fetch(
       `${TMDB_BASE}/search/tv?api_key=${apiKey}&query=${encodedQuery}&include_adult=false`,
+      tmdbCache(TMDB_SEARCH_TTL),
     ),
   ]);
 
@@ -86,5 +93,5 @@ export async function GET(request: NextRequest) {
     .slice(0, 15)
     .map(({ popularity, ...rest }) => rest);
 
-  return NextResponse.json({ results });
+  return cachedJson({ results }, HOUR);
 }

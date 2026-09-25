@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DAY, TMDB_CREDITS_TTL, cachedJson, rateLimit, tmdbCache } from "@/lib/api-cache";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey || apiKey === "your_api_key_here") {
     return NextResponse.json(
@@ -20,6 +24,7 @@ export async function GET(request: NextRequest) {
 
   const res = await fetch(
     `${TMDB_BASE}/person/${id}?api_key=${apiKey}`,
+    tmdbCache(TMDB_CREDITS_TTL),
   );
 
   if (!res.ok) {
@@ -28,9 +33,8 @@ export async function GET(request: NextRequest) {
 
   const data = await res.json();
 
-  return NextResponse.json({
-    id: data.id,
-    name: data.name,
-    profilePath: data.profile_path,
-  });
+  return cachedJson(
+    { id: data.id, name: data.name, profilePath: data.profile_path },
+    DAY,
+  );
 }

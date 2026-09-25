@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DAY, TMDB_CREDITS_TTL, cachedJson, rateLimit, tmdbCache } from "@/lib/api-cache";
 
 import {
   TMDB_BASE,
@@ -18,6 +19,9 @@ const SAMPLE_SIZE = 10;
 // and credit keying live in lib/tmdb-rules.ts, shared with validate and search.
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey || apiKey === "your_api_key_here") {
     return NextResponse.json(
@@ -41,9 +45,11 @@ export async function GET(request: NextRequest) {
   const [startRes, endRes] = await Promise.all([
     fetch(
       `${TMDB_BASE}/person/${startId}/combined_credits?api_key=${apiKey}`,
+      tmdbCache(TMDB_CREDITS_TTL),
     ),
     fetch(
       `${TMDB_BASE}/person/${endId}/combined_credits?api_key=${apiKey}`,
+      tmdbCache(TMDB_CREDITS_TTL),
     ),
   ]);
 
@@ -64,7 +70,7 @@ export async function GET(request: NextRequest) {
   const sharedMedia = endCredits.find((c) => startMediaKeys.has(creditKey(c)));
 
   if (sharedMedia) {
-    return NextResponse.json({ connectable: true, minSteps: 1 });
+    return cachedJson({ connectable: true, minSteps: 1 }, DAY);
   }
 
   // No direct shared credit — check for shared co-stars.
@@ -77,7 +83,10 @@ export async function GET(request: NextRequest) {
   const castResponses = await Promise.all(
     topStart.map(async (credit) => {
       const path = castPath(toMediaType(credit.media_type), credit.id);
-      const res = await fetch(`${TMDB_BASE}${path}?api_key=${apiKey}`);
+      const res = await fetch(
+        `${TMDB_BASE}${path}?api_key=${apiKey}`,
+        tmdbCache(TMDB_CREDITS_TTL),
+      );
       const data = await res.json();
       const cast: CastMember[] = (data.cast || []).filter(castMemberActs);
       return { cast };
@@ -90,7 +99,7 @@ export async function GET(request: NextRequest) {
       // Check if this co-star has any credit in common with end actor
       // For efficiency, we just check if this co-star IS the end actor
       if (member.id === Number(endId)) {
-        return NextResponse.json({ connectable: true, minSteps: 1 });
+        return cachedJson({ connectable: true, minSteps: 1 }, DAY);
       }
     }
   }
@@ -109,7 +118,10 @@ export async function GET(request: NextRequest) {
   const endCastResponses = await Promise.all(
     topEnd.map(async (credit) => {
       const path = castPath(toMediaType(credit.media_type), credit.id);
-      const res = await fetch(`${TMDB_BASE}${path}?api_key=${apiKey}`);
+      const res = await fetch(
+        `${TMDB_BASE}${path}?api_key=${apiKey}`,
+        tmdbCache(TMDB_CREDITS_TTL),
+      );
       const data = await res.json();
       const cast: CastMember[] = (data.cast || []).filter(castMemberActs);
       return { cast };
@@ -120,12 +132,12 @@ export async function GET(request: NextRequest) {
     const cast = castData.cast;
     for (const member of cast) {
       if (startCoStarIds.has(member.id)) {
-        return NextResponse.json({ connectable: true, minSteps: 2 });
+        return cachedJson({ connectable: true, minSteps: 2 }, DAY);
       }
     }
   }
 
   // Couldn't confirm connection in 2 steps — still likely connectable
   // but we can't prove it cheaply
-  return NextResponse.json({ connectable: false, minSteps: null });
+  return cachedJson({ connectable: false, minSteps: null }, DAY);
 }
