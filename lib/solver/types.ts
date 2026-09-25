@@ -31,7 +31,7 @@ export interface Graph {
 
 export type RouteStep =
   | { kind: "actor"; id: number; name: string }
-  | { kind: "title"; id: number; name: string; mediaType: GraphMediaType; year: string };
+  | { kind: "title"; id: number; name: string; mediaType: GraphMediaType; year: string; votes: number };
 
 // Alternating actor, title, actor, …, actor. par = number of titles.
 export interface Route {

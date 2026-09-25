@@ -36,3 +36,26 @@ export function formatTime(ms: number): string {
     ? `${minutes}:${seconds.toString().padStart(2, "0")}`
     : `${seconds}s`;
 }
+
+// Spoiler-free share line in the Wordle / Strands family: no names, one 🎬 per
+// step, 💡 per hint, the result against par, and the link last (like Framed).
+export function buildShareText({
+  par,
+  steps,
+  hintsUsed,
+  endReason,
+  url,
+}: {
+  par: number;
+  steps: number;
+  hintsUsed: number;
+  endReason: "won" | "gaveUp";
+  url: string;
+}): string {
+  const head = `Six Degrees · Par ${par}`;
+  if (endReason === "gaveUp") return `${head}\n🏳️ Gave up\n${url}`;
+  const delta = scoreVsPar(steps, hintsUsed, par);
+  const result = delta < 0 ? `Under par (${delta})` : getScoreLabel(delta);
+  const hints = hintsUsed > 0 ? ` ${"💡".repeat(hintsUsed)}` : "";
+  return `${head}\n${"🎬".repeat(steps)}${hints} · ${result}\n${url}`;
+}

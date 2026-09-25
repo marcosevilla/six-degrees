@@ -76,7 +76,7 @@ function actorStep(g: Graph, i: number): RouteStep {
 
 function titleStep(g: Graph, t: number): RouteStep {
   const x = g.titles[t];
-  return { kind: "title", id: x.id, name: x.name, mediaType: x.mediaType, year: x.year };
+  return { kind: "title", id: x.id, name: x.name, mediaType: x.mediaType, year: x.year, votes: x.votes };
 }
 
 function buildRoute(g: Graph, fSeen: Map<number, Parent>, bSeen: Map<number, Parent>, meet: number): Route {

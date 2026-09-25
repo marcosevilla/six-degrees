@@ -16,15 +16,9 @@ export interface CreditsSource {
   castOf(title: BridgeTitle): Promise<number[]>;
 }
 
-// Votes by title, built once per graph, for preferring well-known onward routes.
-const votesCache = new WeakMap<Graph, Map<string, number>>();
-function routeVotes(g: Graph, r: Route): number {
-  let byKey = votesCache.get(g);
-  if (!byKey) {
-    byKey = new Map(g.titles.map((t) => [`${t.mediaType}:${t.id}`, t.votes]));
-    votesCache.set(g, byKey);
-  }
-  return r.steps.reduce((sum, s) => (s.kind === "title" ? sum + (byKey!.get(`${s.mediaType}:${s.id}`) ?? 0) : sum), 0);
+// How well-known a route's titles are, for preferring recognizable routes.
+function routeVotes(r: Route): number {
+  return r.steps.reduce((sum, s) => (s.kind === "title" ? sum + s.votes : sum), 0);
 }
 
 // Of these people, whose route to the target is shortest (then best-known)?
@@ -35,7 +29,7 @@ function bestOnward(g: Graph, ids: number[], toId: number, skipId: number): Rout
     if (id === skipId || !g.actorIndex.has(id)) continue;
     const onward = shortestRoute(g, id, toId);
     if (!onward) continue;
-    const votes = routeVotes(g, onward);
+    const votes = routeVotes(onward);
     if (!best || onward.par < best.par || (onward.par === best.par && votes > bestVotes)) {
       best = onward;
       bestVotes = votes;
@@ -47,7 +41,7 @@ function bestOnward(g: Graph, ids: number[], toId: number, skipId: number): Rout
 function prepend(fromId: number, fromName: string, t: BridgeTitle, onward: Route): Route {
   const head: RouteStep[] = [
     { kind: "actor", id: fromId, name: fromName },
-    { kind: "title", id: t.id, name: t.name, mediaType: t.mediaType, year: t.year },
+    { kind: "title", id: t.id, name: t.name, mediaType: t.mediaType, year: t.year, votes: t.votes },
   ];
   return { steps: [...head, ...onward.steps], par: onward.par + 1 };
 }

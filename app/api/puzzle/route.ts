@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DAY, cachedJson, rateLimit } from "@/lib/api-cache";
 import { getGraph, getPool } from "@/lib/solver/server";
-import { pickPuzzle } from "@/lib/solver/puzzle";
+import { FAIR_MIN_VOTES, pickPuzzle } from "@/lib/solver/puzzle";
 import { shortestRoute } from "@/lib/solver/search";
 
 // Deals a verified pair with its par, or checks a shared pair. There is no
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   if (difficulty !== "easy" && difficulty !== "medium") {
     return NextResponse.json({ error: "difficulty must be easy or medium" }, { status: 400 });
   }
-  const pick = pickPuzzle(graph, pool.map((a) => a.id), difficulty);
+  const pick = pickPuzzle(graph, pool.map((a) => a.id), difficulty, Math.random, 200, FAIR_MIN_VOTES);
   if (!pick) return NextResponse.json({ error: "No puzzle found" }, { status: 503 });
   return NextResponse.json(
     { start: byId.get(pick.startId), target: byId.get(pick.targetId), par: pick.par },

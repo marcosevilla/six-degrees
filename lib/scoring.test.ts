@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getChainSteps, scoreVsPar, getScoreLabel, elapsedMs } from "./scoring";
+import { buildShareText, getChainSteps, scoreVsPar, getScoreLabel, elapsedMs } from "./scoring";
 
 test("steps count the titles in the chain", () => {
   assert.equal(
@@ -33,4 +33,21 @@ test("elapsed time leaves out paused time, including a pause in progress", () =>
   assert.equal(elapsedMs({ startTime: 0, endTime: null, pausedMs: 0, pauseStartedAt: 800 }, 1000), 800);
   assert.equal(elapsedMs({ startTime: 0, endTime: 900, pausedMs: 100, pauseStartedAt: null }, 5000), 800);
   assert.equal(elapsedMs({ startTime: null, endTime: null, pausedMs: 0, pauseStartedAt: null }, 5000), 0);
+});
+
+test("share text: one 🎬 per step, 💡 per hint, par-relative result, link last", () => {
+  const url = "https://example.com/play?pair=1-2";
+  assert.equal(
+    buildShareText({ par: 2, steps: 3, hintsUsed: 1, endReason: "won", url }),
+    `Six Degrees · Par 2\n🎬🎬🎬 💡 · +2\n${url}`,
+  );
+  assert.equal(buildShareText({ par: 2, steps: 2, hintsUsed: 0, endReason: "won", url }), `Six Degrees · Par 2\n🎬🎬 · Par\n${url}`);
+  assert.equal(
+    buildShareText({ par: 2, steps: 1, hintsUsed: 0, endReason: "won", url }),
+    `Six Degrees · Par 2\n🎬 · Under par (-1)\n${url}`,
+  );
+  assert.equal(
+    buildShareText({ par: 1, steps: 0, hintsUsed: 2, endReason: "gaveUp", url }),
+    `Six Degrees · Par 1\n🏳️ Gave up\n${url}`,
+  );
 });

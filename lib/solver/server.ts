@@ -19,6 +19,9 @@ import { loadGraph } from "./graph";
 import type { Graph } from "./types";
 import type { BridgeTitle, CreditsSource } from "./bridge";
 
+// Same depth scripts/build-graph.ts uses for each title's cast.
+const GRAPH_CAST_DEPTH = 15;
+
 let graph: Graph | null = null;
 let pool: PoolActor[] | null = null;
 
@@ -76,8 +79,9 @@ export function tmdbCreditsSource(apiKey: string): CreditsSource {
     async castOf(t) {
       const res = await fetch(`${TMDB_BASE}${castPath(t.mediaType, t.id)}?api_key=${apiKey}`, tmdbCache(TMDB_CREDITS_TTL));
       if (!res.ok) return [];
+      // Top-billed only, like the graph: hints shouldn't lean on uncredited extras.
       const cast: CastMember[] = (await res.json()).cast ?? [];
-      return cast.filter(castMemberActs).map((m) => m.id);
+      return cast.filter(castMemberActs).slice(0, GRAPH_CAST_DEPTH).map((m) => m.id);
     },
   };
 }

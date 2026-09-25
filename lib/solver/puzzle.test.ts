@@ -34,3 +34,9 @@ test("pool ids missing from the graph are ignored", () => {
 test("gives up after maxSamples when the band is impossible", () => {
   assert.equal(pickPuzzle(g, [1, 5], "easy", Math.random, 20), null);
 });
+
+test("fair puzzles: every title on the best route must be well known", () => {
+  // A→B is par 1 only through "AB Movie" (900 votes).
+  assert.equal(pickPuzzle(g, [1, 2], "easy", Math.random, 20, 1000), null);
+  assert.deepEqual(pickPuzzle(g, [1, 2], "easy", seq(0, 0), 20, 900), { startId: 1, targetId: 2, par: 1 });
+});

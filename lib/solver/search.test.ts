@@ -22,7 +22,7 @@ test("two hops are par 2 with a deterministic tie-break", () => {
 test("three hops are par 3 and carry media types", () => {
   const r = shortestRoute(g, 1, 4);
   assert.equal(r?.par, 3);
-  assert.deepEqual(r?.steps.at(-2), { kind: "title", id: 12, name: "CD Show", mediaType: "tv", year: "2003" });
+  assert.deepEqual(r?.steps.at(-2), { kind: "title", id: 12, name: "CD Show", mediaType: "tv", year: "2003", votes: 700 });
 });
 
 test("disconnected actors have no route", () => {

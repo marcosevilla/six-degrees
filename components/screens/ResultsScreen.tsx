@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useGame } from "@/lib/GameContext";
-import { elapsedMs, formatTime, getChainSteps, getScoreLabel, scoreVsPar } from "@/lib/scoring";
+import { buildShareText, elapsedMs, formatTime, getChainSteps, getScoreLabel, scoreVsPar } from "@/lib/scoring";
 import { ChainDisplay } from "@/components/round/ChainDisplay";
+import { RouteList } from "@/components/round/RouteList";
 
 export function ResultsScreen() {
   const { state, dispatch } = useGame();
@@ -14,28 +15,31 @@ export function ResultsScreen() {
   const steps = getChainSteps(chain);
   const elapsed = elapsedMs(state, state.endTime ?? 0);
   const gaveUp = state.endReason === "gaveUp";
-  const label = gaveUp ? "Gave up" : getScoreLabel(scoreVsPar(steps, hintsUsed, par));
-
-  const shareText = actorPair
-    ? `Six Degrees · Par ${par}\n${actorPair.start.name} → ${actorPair.end.name}: ${steps} step${steps !== 1 ? "s" : ""} · ${label}`
-    : "";
+  const delta = scoreVsPar(steps, hintsUsed, par);
+  const label = gaveUp ? "Gave up" : getScoreLabel(delta);
 
   const shareUrl = actorPair
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/play?pair=${actorPair.start.id}-${actorPair.end.id}`
     : "";
 
+  // Like NYT Games: the share sheet on phones, the clipboard everywhere else.
   const handleShare = async () => {
-    const text = `${shareText}\n${shareUrl}`;
-    if (navigator.share) {
+    const text = buildShareText({ par, steps, hintsUsed, endReason: state.endReason ?? "won", url: shareUrl });
+    const isPhone = window.matchMedia("(pointer: coarse)").matches;
+    if (isPhone && navigator.share && navigator.canShare?.({ text }) !== false) {
       try {
         await navigator.share({ text });
-      } catch {
-        // User cancelled
+        return;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return; // they closed the sheet
       }
-    } else {
+    }
+    try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard blocked: nothing to fall back to without a prompt.
     }
   };
 
@@ -108,6 +112,21 @@ export function ResultsScreen() {
           isComplete={true}
           celebrate={false}
         />
+      )}
+
+      {/* Your route against the best route we know */}
+      <div className="grid grid-cols-2 gap-6 md:gap-10 w-full max-w-[560px] px-2">
+        <RouteList
+          title={gaveUp ? `Your chain (${steps})` : `Your route (${steps})`}
+          links={chain}
+          emptyText="No links yet"
+        />
+        <RouteList title={`Best route (par ${par})`} links={state.bestRoute} emptyText="Best route unavailable" />
+      </div>
+      {!gaveUp && delta < 0 && (
+        <p className="text-xs text-center max-w-[320px]" style={{ color: "var(--color-text-secondary)" }}>
+          You found a shorter route than the best one we know.
+        </p>
       )}
 
       {/* Actions */}
