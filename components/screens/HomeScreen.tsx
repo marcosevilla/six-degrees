@@ -99,6 +99,21 @@ export function HomeScreen() {
       >
         Play
       </button>
+
+      {/* TMDb attribution, required by their API terms. The logo must stay less
+          prominent than our own title, and must be one of their official SVGs. */}
+      <footer className="flex items-center gap-2 max-w-[340px]">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimization needed */}
+        <img
+          src="/tmdb-logo-short.svg"
+          alt="TMDB"
+          className="h-[12px] w-auto shrink-0"
+        />
+        <p className="text-[10px] leading-snug" style={{ color: "#8A8A8A" }}>
+          This product uses TMDB and the TMDB APIs but is not endorsed,
+          certified, or otherwise approved by TMDB.
+        </p>
+      </footer>
     </div>
   );
 }
