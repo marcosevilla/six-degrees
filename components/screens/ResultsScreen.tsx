@@ -2,20 +2,21 @@
 
 import { useState } from "react";
 import { useGame } from "@/lib/GameContext";
-import { getChainSteps, formatTime, getScoreLabel } from "@/lib/scoring";
+import { elapsedMs, formatTime, getChainSteps, getScoreLabel, scoreVsPar } from "@/lib/scoring";
 import { ChainDisplay } from "@/components/round/ChainDisplay";
 
 export function ResultsScreen() {
   const { state, dispatch } = useGame();
-  const { chain, actorPair, startTime, endTime, difficulty } = state;
+  const { chain, actorPair, difficulty, hintsUsed } = state;
+  const par = state.par ?? 0;
   const [copied, setCopied] = useState(false);
 
-  const steps = getChainSteps(chain.length);
-  const elapsed = startTime && endTime ? endTime - startTime : 0;
-  const label = getScoreLabel(steps);
+  const steps = getChainSteps(chain);
+  const elapsed = elapsedMs(state, state.endTime ?? 0);
+  const label = getScoreLabel(scoreVsPar(steps, hintsUsed, par));
 
   const shareText = actorPair
-    ? `I connected ${actorPair.start.name} to ${actorPair.end.name} in ${steps} step${steps !== 1 ? "s" : ""}! Can you beat me? 🎬`
+    ? `Six Degrees · Par ${par}\n${actorPair.start.name} → ${actorPair.end.name}: ${steps} step${steps !== 1 ? "s" : ""} · ${label}`
     : "";
 
   const shareUrl = actorPair
@@ -50,7 +51,7 @@ export function ResultsScreen() {
           className="text-[10px] uppercase tracking-[0.2em]"
           style={{ color: "var(--color-text-secondary)" }}
         >
-          {difficulty}
+          {difficulty} · Par {par}
         </p>
       )}
       <h1
@@ -60,41 +61,42 @@ export function ResultsScreen() {
         {label}
       </h1>
 
-      {/* Stats */}
+      {/* Stats: score is steps against par; hints count as steps; time only breaks ties */}
       <div className="flex gap-4 md:gap-8 items-center">
         <div className="text-center">
-          <p
-            className="text-2xl md:text-3xl font-bold"
-            style={{ color: "var(--color-accent)" }}
-          >
+          <p className="text-2xl md:text-3xl font-bold tabular-nums" style={{ color: "var(--color-accent)" }}>
             {steps}
           </p>
-          <p
-            className="text-xs uppercase tracking-[0.15em]"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
+          <p className="text-xs uppercase tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
             {steps === 1 ? "Step" : "Steps"}
           </p>
         </div>
-        <div
-          className="w-px h-8"
-          style={{ background: "var(--color-border)" }}
-        />
+        <div className="w-px h-8" style={{ background: "var(--color-border)" }} />
         <div className="text-center">
-          <p
-            className="text-2xl md:text-3xl font-bold"
-            style={{ color: "var(--color-accent)" }}
-          >
-            {formatTime(elapsed)}
+          <p className="text-2xl md:text-3xl font-bold tabular-nums" style={{ color: "var(--color-text)" }}>
+            {par}
           </p>
-          <p
-            className="text-xs uppercase tracking-[0.15em]"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
-            Time
+          <p className="text-xs uppercase tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
+            Par
           </p>
         </div>
+        {hintsUsed > 0 && (
+          <>
+            <div className="w-px h-8" style={{ background: "var(--color-border)" }} />
+            <div className="text-center">
+              <p className="text-2xl md:text-3xl font-bold tabular-nums" style={{ color: "var(--color-text)" }}>
+                +{hintsUsed}
+              </p>
+              <p className="text-xs uppercase tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
+                {hintsUsed === 1 ? "Hint" : "Hints"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
+      <p className="text-[10px] uppercase tracking-[0.2em] tabular-nums -mt-2" style={{ color: "var(--color-text-secondary)" }}>
+        Time {formatTime(elapsed)}
+      </p>
 
       {/* Completed chain visualization */}
       {actorPair && (

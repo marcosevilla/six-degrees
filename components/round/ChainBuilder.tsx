@@ -1,34 +1,65 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useGame } from "@/lib/GameContext";
 import { validateConnection } from "@/lib/tmdb";
 import { MediaResult, PersonResult } from "@/lib/types";
 import { CHAIN_SOFT_LIMIT } from "@/lib/actor-pool";
-import { formatTime } from "@/lib/scoring";
+import { elapsedMs, formatTime } from "@/lib/scoring";
 import { playCardSound, playWinSound, playRemoveSound } from "@/lib/sounds";
 import { SearchInput } from "./SearchInput";
 import { ChainDisplay } from "./ChainDisplay";
 
 export function ChainBuilder() {
   const { state, dispatch } = useGame();
-  const { chain, searchMode, selectedMedia, actorPair, difficulty } = state;
+  const { chain, searchMode, selectedMedia, actorPair, difficulty, par } = state;
 
   const [error, setError] = useState<string | null>(null);
+  // Bumped on every rejected pick so the shake replays even for the same message.
+  const [errorCount, setErrorCount] = useState(0);
   const [isValidating, setIsValidating] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const currentActor = chain.length > 0 ? chain[chain.length - 1] : null;
 
-  // Live timer
+  // Live clock. elapsedMs leaves out time spent waiting on validation.
   useEffect(() => {
-    if (!state.startTime) return;
-    setElapsed(Date.now() - state.startTime);
-    const interval = setInterval(() => {
-      setElapsed(Date.now() - state.startTime!);
-    }, 1000);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [state.startTime]);
+  }, []);
+  const elapsed = elapsedMs(state, now);
+
+  // Restart the shake on each rejection without remounting the input (a
+  // remount would drop focus and close the phone keyboard).
+  const shakeRefs = useRef<(HTMLDivElement | null)[]>([]);
+  useEffect(() => {
+    if (errorCount === 0) return;
+    for (const el of shakeRefs.current) {
+      if (!el) continue;
+      el.classList.remove("input-shake");
+      void el.offsetWidth;
+      el.classList.add("input-shake");
+    }
+  }, [errorCount]);
+
+  const reject = (message: string) => {
+    setError(message);
+    setErrorCount((n) => n + 1);
+  };
+
+  // Every TMDb check runs with the clock paused: the player shouldn't pay for
+  // network time.
+  const checkLink = async (actorId: number, media: MediaResult) => {
+    setError(null);
+    setIsValidating(true);
+    dispatch({ type: "PAUSE_TIMER", now: Date.now() });
+    try {
+      return await validateConnection(actorId, media.id, media.mediaType);
+    } finally {
+      dispatch({ type: "RESUME_TIMER", now: Date.now() });
+      setIsValidating(false);
+    }
+  };
   const showSoftLimit = chain.length >= CHAIN_SOFT_LIMIT;
 
   const excludeActorIds = useMemo(
@@ -38,47 +69,23 @@ export function ChainBuilder() {
 
   const handleSelectMedia = async (media: MediaResult) => {
     if (!currentActor) return;
-    setError(null);
-    setIsValidating(true);
-
     try {
-      const valid = await validateConnection(
-        currentActor.id,
-        media.id,
-        media.mediaType,
-      );
-
-      setIsValidating(false);
-
-      if (!valid) {
-        setError(`${currentActor.name} doesn't appear in ${media.title}`);
+      if (!(await checkLink(currentActor.id, media))) {
+        reject(`${currentActor.name} doesn't appear in ${media.title}`);
         return;
       }
-
       playCardSound();
       dispatch({ type: "SELECT_MEDIA", media });
     } catch {
-      setIsValidating(false);
-      setError("Connection failed — check your internet and try again");
+      reject("Connection failed — check your internet and try again");
     }
   };
 
   const handleSelectPerson = async (person: PersonResult) => {
     if (!selectedMedia) return;
-    setError(null);
-    setIsValidating(true);
-
     try {
-      const valid = await validateConnection(
-        person.id,
-        selectedMedia.id,
-        selectedMedia.mediaType,
-      );
-
-      setIsValidating(false);
-
-      if (!valid) {
-        setError(`${person.name} doesn't appear in ${selectedMedia.title}`);
+      if (!(await checkLink(person.id, selectedMedia))) {
+        reject(`${person.name} doesn't appear in ${selectedMedia.title}`);
         return;
       }
 
@@ -89,8 +96,7 @@ export function ChainBuilder() {
       }
       dispatch({ type: "SELECT_PERSON", person });
     } catch {
-      setIsValidating(false);
-      setError("Connection failed — check your internet and try again");
+      reject("Connection failed — check your internet and try again");
     }
   };
 
@@ -99,8 +105,9 @@ export function ChainBuilder() {
       ? `What was ${currentActor?.name} in?`
       : `Who else was in ${selectedMedia?.title}?`;
 
-  const searchBar = (
-    <>
+  // Rendered twice (desktop inline, mobile bottom bar), so each copy gets a ref slot.
+  const searchBar = (slot: number) => (
+    <div ref={(el) => { shakeRefs.current[slot] = el; }}>
       <SearchInput
         mode={searchMode}
         placeholder={placeholder}
@@ -112,6 +119,7 @@ export function ChainBuilder() {
 
       {isValidating && (
         <p
+          role="status"
           className="text-xs uppercase tracking-[0.15em] mt-2"
           style={{ color: "var(--color-text-secondary)" }}
         >
@@ -121,13 +129,14 @@ export function ChainBuilder() {
 
       {error && (
         <p
+          role="alert"
           className="text-xs mt-2 max-w-[280px]"
           style={{ color: "var(--color-error)" }}
         >
           {error}
         </p>
       )}
-    </>
+    </div>
   );
 
   return (
@@ -140,6 +149,7 @@ export function ChainBuilder() {
             style={{ color: "var(--color-text-secondary)" }}
           >
             {difficulty}
+            {par !== null && ` · Par ${par}`}
           </p>
         )}
         {actorPair && (
@@ -177,7 +187,7 @@ export function ChainBuilder() {
       >
         {/* Desktop: inline search under placeholder card */}
         <div className="hidden md:block max-w-[240px] w-full">
-          {searchBar}
+          {searchBar(0)}
         </div>
       </ChainDisplay>
 
@@ -224,7 +234,7 @@ export function ChainBuilder() {
         }}
       >
         <div className="px-4 py-3 pb-[env(safe-area-inset-bottom,12px)]">
-          {searchBar}
+          {searchBar(1)}
         </div>
       </div>
     </div>

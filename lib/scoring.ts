@@ -1,6 +1,31 @@
-export function getChainSteps(chainLength: number): number {
-  // "Steps" = number of movies used to connect = (chainLength - 1) / 2
-  return Math.floor((chainLength - 1) / 2);
+import type { ChainLink, GameState } from "./types";
+
+// Steps = titles used to connect the two actors.
+export function getChainSteps(chain: ChainLink[]): number {
+  return chain.filter((l) => l.type === "media").length;
+}
+
+// Golf scoring: every step and every hint counts, par comes off. Below zero is
+// possible because the solver's graph is pruned; an obscure film can beat it.
+export function scoreVsPar(steps: number, hintsUsed: number, par: number): number {
+  return steps + hintsUsed - par;
+}
+
+export function getScoreLabel(delta: number): string {
+  if (delta < 0) return "Under par!";
+  if (delta === 0) return "Par";
+  return `+${delta}`;
+}
+
+// Time is only a tiebreaker, and time spent waiting on validation doesn't count.
+export function elapsedMs(
+  s: Pick<GameState, "startTime" | "endTime" | "pausedMs" | "pauseStartedAt">,
+  now: number,
+): number {
+  if (s.startTime === null) return 0;
+  const end = s.endTime ?? now;
+  const openPause = s.pauseStartedAt !== null && s.endTime === null ? end - s.pauseStartedAt : 0;
+  return Math.max(0, end - s.startTime - s.pausedMs - openPause);
 }
 
 export function formatTime(ms: number): string {
@@ -10,11 +35,4 @@ export function formatTime(ms: number): string {
   return minutes > 0
     ? `${minutes}:${seconds.toString().padStart(2, "0")}`
     : `${seconds}s`;
-}
-
-export function getScoreLabel(steps: number): string {
-  if (steps <= 1) return "Incredible!";
-  if (steps === 2) return "Amazing!";
-  if (steps === 3) return "Nice!";
-  return "You got it!";
 }

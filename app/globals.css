@@ -59,6 +59,18 @@ body {
 }
 
 /* Chain card animations */
+/* Rejected pick: Wordle's row shake (600ms, ±1/2/4px). */
+@keyframes input-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+
+.input-shake {
+  animation: input-shake 600ms ease-in-out;
+}
+
 @keyframes card-flip-in {
   0% {
     transform: perspective(400px) rotateY(-90deg);

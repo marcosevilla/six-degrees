@@ -53,4 +53,20 @@ test("PLAY_AGAIN returns home", () => {
   assert.deepEqual(gameReducer(started(), { type: "PLAY_AGAIN" }), initialGameState);
 });
 
-export { started, FILM };
+// --- Item 2: the clock pauses while moves are checked ---
+
+test("PAUSE then RESUME adds the paused time; a second PAUSE keeps the first start", () => {
+  let s = gameReducer(started(), { type: "PAUSE_TIMER", now: 2000 });
+  s = gameReducer(s, { type: "PAUSE_TIMER", now: 2500 });
+  s = gameReducer(s, { type: "RESUME_TIMER", now: 3000 });
+  assert.deepEqual([s.pausedMs, s.pauseStartedAt], [1000, null]);
+});
+
+test("RESUME without a PAUSE changes nothing", () => {
+  const s = started();
+  assert.equal(gameReducer(s, { type: "RESUME_TIMER", now: 5 }), s);
+});
+
+test("PAUSE outside play changes nothing", () => {
+  assert.equal(gameReducer(initialGameState, { type: "PAUSE_TIMER", now: 5 }), initialGameState);
+});

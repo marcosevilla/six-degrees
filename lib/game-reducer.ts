@@ -132,6 +132,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         selectedMedia: null,
       };
 
+    case "PAUSE_TIMER":
+      if (state.phase !== "playing" || state.pauseStartedAt !== null) return state;
+      return { ...state, pauseStartedAt: action.now };
+
+    case "RESUME_TIMER":
+      if (state.pauseStartedAt === null) return state;
+      return {
+        ...state,
+        pausedMs: state.pausedMs + Math.max(0, action.now - state.pauseStartedAt),
+        pauseStartedAt: null,
+      };
+
     case "PLAY_AGAIN":
       return initialGameState;
 
