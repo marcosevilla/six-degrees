@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { HOUR, TMDB_SEARCH_TTL, cachedJson, rateLimit, tmdbCache } from "@/lib/api-cache";
 import { TMDB_BASE, isAwardsShow, isEligibleTitle } from "@/lib/tmdb-rules";
+import { rankByMatch } from "@/lib/search-rank";
 
 export async function GET(request: NextRequest) {
   const limited = rateLimit(request);
@@ -87,9 +88,8 @@ export async function GET(request: NextRequest) {
     }),
   );
 
-  // Merge and sort by popularity, take top 15
-  const results = [...movies, ...tvShows]
-    .sort((a, b) => b.popularity - a.popularity)
+  // Merge, put what the player typed first, then popularity; take top 15
+  const results = rankByMatch(query, [...movies, ...tvShows])
     .slice(0, 15)
     .map(({ popularity, ...rest }) => rest);
 
