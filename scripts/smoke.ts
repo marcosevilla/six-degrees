@@ -63,6 +63,15 @@ const checks: Check[] = [
     },
   },
   {
+    name: "pool snapshot is under 6 months old (TMDb caching limit)",
+    run: async () => {
+      const { body } = await get("/api/tmdb/pool");
+      const ageDays = (Date.now() - Date.parse(body.generatedAt)) / 86_400_000;
+      assert(Number.isFinite(ageDays), `no generatedAt (${body.generatedAt})`);
+      assert(ageDays < 180, `pool is ${Math.round(ageDays)} days old; run npm run build:pool`);
+    },
+  },
+  {
     name: "search finds Inception",
     run: async () => {
       const { body } = await get("/api/tmdb/search?query=inception&type=media");

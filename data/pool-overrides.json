@@ -1,0 +1,9 @@
+{
+ "_readme": "Hand edits to the actor pool. 'include' forces people in even if the ranking misses them; 'exclude' keeps people out. Use TMDb person ids (the name is for humans; build-pool warns if it doesn't match). Rerun npm run build:pool after editing.",
+ "include": [
+  { "id": 2227, "name": "Nicole Kidman" },
+  { "id": 18897, "name": "Jackie Chan" },
+  { "id": 974169, "name": "Jenna Ortega" }
+ ],
+ "exclude": []
+}

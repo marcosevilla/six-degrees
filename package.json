@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "smoke": "npx --yes tsx scripts/smoke.ts"
+    "smoke": "npx --yes tsx scripts/smoke.ts",
+    "build:pool": "npx --yes tsx scripts/build-pool.ts"
   },
   "dependencies": {
     "agentation": "^2.2.0",
