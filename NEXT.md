@@ -17,7 +17,7 @@ Full analysis + build prompts: `~/Obsidian/marcowits/resources/research/2026-09-
   - [ ] Monthly: `npm run build:graph` right after `build:pool` + commit `data/costar-graph.json` (graph must match the pool)
   - [ ] Design pass items found while building: the closing connector draws beside the pinned target, not across the gap (1440); start card scrolls off-screen at 375 on round start; results layout is plain lists
   - [ ] Later: daily puzzle = `pickPuzzle` with a date-seeded rng; Hard mode needs a wider pool (par 3+ is 0.02% of the famous pool); first-visit how-to modal (Wordle pattern)
-- [ ] **Design pass** — 3 directions artifact → build chosen; connectors, results layout, a11y batch → Prompt 5
+- [ ] **Design pass (Step 4)** — 2026-09-26 Phase 1 DONE: 3 directions in https://claude.ai/artifact/9ba8WXsiMQy84nBKd5fChF (Cutting Room / Line Map / Casting Board; rec = remix: Casting Board for play + win, Line Map for results + share). **Waiting on Marco to pick or remix**, then Phase 2 (tokens → strings → results → a11y → onboarding/polish)
 - [ ] **Launch + money** — email TMDb re commercial license EARLY (terms forbid commercial use without agreement); daily puzzle infra; phased plan → Prompt 4
 
 ## Parked (from DESIGN-AUDIT-2026-08.md, folded into prompts above)
