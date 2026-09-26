@@ -18,7 +18,13 @@ Full analysis + build prompts: `~/Obsidian/marcowits/resources/research/2026-09-
   - [ ] Design pass items found while building: the closing connector draws beside the pinned target, not across the gap (1440); start card scrolls off-screen at 375 on round start; results layout is plain lists
   - [ ] Later: daily puzzle = `pickPuzzle` with a date-seeded rng; Hard mode needs a wider pool (par 3+ is 0.02% of the famous pool); first-visit how-to modal (Wordle pattern)
 - [ ] **Design pass (Step 4)** — 2026-09-26 Phase 1 DONE: 3 directions in https://claude.ai/artifact/9ba8WXsiMQy84nBKd5fChF (Cutting Room / Line Map / Casting Board). 09-26 round 2: Marco chose a Line Map + Cutting Room hybrid → **Reel Line** added at top (film-stock lines, reel-hub stations, dark/light ground). **2026-09-26 PICKED: Reel Line, dark** — 35mm reels for actors, film strips hang on verlet physics (drop, swing, clip on, pull taut on close). Next: Marco confirms final values (colors, type, physics/motion) → Phase 2 build, then Phase 2 (tokens → strings → results → a11y → onboarding/polish)
-- [ ] **Launch + money** — email TMDb re commercial license EARLY (terms forbid commercial use without agreement); daily puzzle infra; phased plan → Prompt 4
+  - [ ] **Final values (Marco):** approve or edit the Reel Line table (colors, Overpass + Plex Mono, physics gravity 2200 / damping 0.985 / slack 1.10→1.01, clip-on 280ms, reel click 320ms, taut 380ms). It's in the Nimble subtask "Approve final Reel Line values"
+  - [ ] Phase 2 build, 5 items (tokens → reels + hanging film → results/share → a11y → onboarding/polish). Paste-ready prompt in the Nimble parent task
+  - [ ] **Nimble tidy — interrupted 2026-09-26 by /wrap, NOT done:**
+    - Marco said "merge them": move the 7 subtasks and the prompt from "Six Degrees: ship the Reel Line redesign (Step 4)" (`0bd0e5f6…`, renamed from "Finish Six Degrees movie game") under "Make Six Degrees Game go public" (`0d0e7e76…`).
+    - Also close go-public's done subtasks: "List out UX improvements", "Audit current implementation", "Identify architecture stability".
+    - `dt task update` has no `--parent` flag, so re-parenting means recreating the subtasks under `0d0e7e76` with `--parent`, then completing the old ones.
+- [ ] **Launch + money** — send the TMDb commercial-license email early (offered as a Nimble task, not created yet); email TMDb re commercial license EARLY (terms forbid commercial use without agreement); daily puzzle infra; phased plan → Prompt 4
 
 ## Parked (from DESIGN-AUDIT-2026-08.md, folded into prompts above)
 - Themed pools, async competitive mode, auth/leaderboards
