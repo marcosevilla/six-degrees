@@ -28,13 +28,15 @@ A public actor-connection game. Given two actors, build a chain of movies and co
 - **The costar graph must match the pool** — `data/costar-graph.json` is built from `data/actor-pool.json` by `npm run build:graph` (~100s, ~9k TMDb calls, cached in `.cache/graph-build/`). Rerun it every time the pool changes and commit both. `build:graph` fails if a pool actor is missing from the graph.
 - **Tests** — `npm test` runs `node --test` through `npx tsx` (no test deps). Fixture graphs live in `lib/solver/__fixtures__/`. The reducer takes time as `now` on actions; never call `Date.now()` inside `gameReducer`.
 - **Dev StrictMode deals twice** — RevealScreen's fetch effect runs twice in dev and keeps one result (cancel flag). Browser tests must read the pair from the screen, not the first `/api/puzzle` response.
-- **Motion values** — every win-moment timing is in `lib/motion.ts`; don't hardcode durations elsewhere.
+- **Motion values** — every motion and physics value (film physics, reel close, reveal, shake, results) is in `lib/motion.ts`; CSS reads them through `--*-ms` variables set inline. Don't hardcode durations elsewhere.
+- **Turbopack serves stale `globals.css`** — CSS edits written by a script (python/sed rewrite) were silently missed by the dev server three times on 2026-09-27; edits made with the Edit tool were picked up. After any CSS change, check the served stylesheet contains the new rule (`fetch(document.querySelector('link[rel=stylesheet]').href)`) before trusting a screenshot; if stale, make a small Edit-tool edit or restart with a clean `.next`.
+- **Film stage** — `components/round/film-stage.ts` is imperative (canvas + DOM positions); React only says what exists via `lib/reel-model.ts`. Never draw at scale ≤ 0 (`drawFilm` guards it; a hidden canvas once looped forever).
 
 ## Tech Stack
 - **Framework**: Next.js 16 (App Router, Turbopack)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4 with CSS custom properties
-- **Fonts**: Geist Sans (primary) + Playfair Display (serif, results score label only)
+- **Fonts**: Overpass (400/600/800; people 800, films + interface 400/600) + IBM Plex Mono (years, timecode, counts), via `next/font/google`
 - **Sound**: Web Audio API synthesized effects (no audio files)
 - **State**: React useReducer + Context (no external state library)
 - **API**: TMDb (proxied via `/api/tmdb/*` routes to hide key)
@@ -44,7 +46,7 @@ A public actor-connection game. Given two actors, build a chain of movies and co
 ## Project Structure
 ```
 app/
-  layout.tsx                    # Root layout (Geist Sans + Playfair Display, viewport meta, grain-bg)
+  layout.tsx                    # Root layout (Overpass + IBM Plex Mono, viewport meta)
   page.tsx                      # Renders <Game />
   globals.css                   # Tailwind + CSS vars + animations + grain overlay + reduced-motion
   api/tmdb/
@@ -59,30 +61,36 @@ app/
   play/
     page.tsx                    # Share link landing page (/play?pair=id-id) → verified via /api/puzzle → reveal
 components/
-  Game.tsx                      # State-driven screen switcher + difficulty-based accent color + share-link auto-start
+  Game.tsx                      # State-driven screen switcher + share-link auto-start + phase announcements
   screens/
-    HomeScreen.tsx              # Landing — branding + difficulty picker + play button
-    RevealScreen.tsx            # Card-reveal loading animation (pair finding + 3D card flip + slide to edges)
+    HomeScreen.tsx              # Landing — title, example line, difficulty radiogroup, play
+    RevealScreen.tsx            # Card-reveal loading animation (pair finding + 3D card flip + fade to reels)
     PlayingScreen.tsx           # Wrapper for ChainBuilder
-    ResultsScreen.tsx           # Score + completed chain + share + play again
+    ResultsScreen.tsx           # Score reel + your line vs express + share card + play again
   round/
-    ChainBuilder.tsx            # Core gameplay: search + validate (clock paused) + chain + close-the-chain beat
+    ChainBuilder.tsx            # Core gameplay: header, ReelStage, bottom panel (hints + search); validate (clock paused), close beat
+    ReelStage.tsx               # The line: reels (DOM) + hanging film (canvas), ready/pending/shake states, the close
+    film-stage.ts               # Imperative engine behind ReelStage: verlet sim loop, reel + label positions (runs only while moving)
+    Reel.tsx                    # ReelPlate (35mm reel SVG) + ReelFace (photo or initials at the hub)
+    LineSummary.tsx             # Results: a route as mini reels + strips of stock (express in aluminum)
+    ExampleLine.tsx             # Home: the static DiCaprio → Inception → Hardy lesson
     HintLadder.tsx              # Stuck exits: top films → next link (+1 each), Show me a route (give up)
-    RouteList.tsx               # Plain route list for results (your route vs best route)
-    ChainDisplay.tsx            # Horizontal scrollable card strip + scroll hint gradient
-    ChainCard.tsx               # Individual card + connector + placeholder
     SearchInput.tsx             # Debounced autocomplete input
-    SearchResults.tsx           # Dropdown result list (upward on mobile)
+    SearchResults.tsx           # Result list (opens upward at every width)
 lib/
   types.ts                      # All TypeScript types (GameState, GameAction, Difficulty, etc.)
   actor-pool.ts                 # Pool fetch + client cache, TMDb image URL helpers
   scoring.ts                    # Steps, score vs par, labels, paused-aware elapsed time, share text
-  motion.ts                     # Win-moment timings (pulse, connector draw, Wordle bounce, settle)
+  motion.ts                     # Every motion + physics value: FILM_PHYSICS, REEL_MOTION, REVEAL_MOTION
+  film-rope.ts                  # Rope (verlet film strip) + drawFilm (35mm stock on canvas) + settle
+  reel-model.ts                 # chain → stations (reels) + films (who hangs from whom, stock color)
+  reel-layout.ts                # Reel hub positions: phone zigzag, desktop left-to-right; grows and scrolls
+  share-card.ts                 # Canvas share card (1.91:1): preview on desktop results, PNG for the phone share sheet
   route-links.ts                # Solver Route → ChainLink[]
   search-rank.ts                # Exact/prefix title matches first in search
   solver/                       # graph.ts (load), search.ts (bidirectional BFS), puzzle.ts (dealing + fair floor),
                                 #   bridge.ts (off-graph + via-title routes), server.ts (fs + TMDb source; server only)
-  sounds.ts                     # Web Audio API synthesized sounds (card chime, win arpeggio, undo crumple, card flip whoosh)
+  sounds.ts                     # Web Audio API synthesized sounds (card chime, error buzz, win arpeggio, undo crumple, card flip whoosh)
   game-reducer.ts               # useReducer: all game state transitions
   GameContext.tsx                # React Context provider
   tmdb.ts                       # Client fetch helpers (search, validate, fetchPuzzle, fetchPuzzleForPair, fetchRoute, fetchFilmography)
@@ -156,90 +164,73 @@ Every reducer case guards its phase and returns the same state object for action
 - **Fair puzzles:** a dealt pair's best route must use only titles with ≥ `FAIR_MIN_VOTES` (1000) TMDb votes, so par never hinges on an obscure TV special. Keeps ~70% of par-1 and 92% of par-2 pairs.
 - **No unverified pairs anywhere:** `/api/puzzle` either returns a solved pair or an error (Reveal shows Retry; bad share links show a dead-end screen).
 - **Score** = steps (titles) + hints − par. Labels: "Under par!" / "Par" / "+N"; give-up shows "Gave up". Time (minus paused validation time) is a small tiebreaker line.
-- **Share text** (spoiler-free): `Six Degrees · Par 2` / `🎬🎬🎬 💡 · +2` / link. Share sheet on phones, clipboard elsewhere.
+- **Share text** (spoiler-free): `Six Degrees · Par 2` / `🟦🟧🟥💡 +2` / link: one square of film stock per film. Share sheet on phones (with the PNG card when it takes files), clipboard elsewhere.
 
-## Design Tokens (CSS Variables)
+## Design Tokens (Reel Line, dark — approved 2026-09-27)
+All tokens live in `@theme static` in `app/globals.css`, so they work as CSS variables (`var(--color-bg)`) and as Tailwind utilities (`bg-surface`, `text-text-secondary`, `border-border`, `rounded-md`, `text-2xs`).
 
-### Colors — Dark A24 palette
-| Variable | Value | Usage |
-|----------|-------|-------|
-| `--color-bg` | `#0A0A0A` | Page background |
-| `--color-surface` | `#141414` | Card/input backgrounds |
-| `--color-border` | `#222222` | Borders, dividers |
-| `--color-text` | `#FAFAFA` | Primary text |
-| `--color-text-secondary` | `#666666` | Labels, secondary text |
-| `--color-accent` | Dynamic per difficulty | CTA buttons, highlights, connectors |
-| `--color-accent-rgb` | Dynamic per difficulty | For rgba() usage |
-| `--color-error` | `#FF6B6B` | Error messages |
-| `--color-success` | `#4ade80` | Success states |
+### Colors
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--color-bg` | `#15171B` | Ground (page, label plates, sprocket holes) |
+| `--color-surface` | `#1F2227` | Inputs, results list, cards |
+| `--color-text` | `#EDEEEA` | Primary text |
+| `--color-text-secondary` | `#9EA3AB` | Secondary text (passes AA on ground and surface) |
+| `--color-border` | `#3A3E45` | Input and button outlines |
+| `--color-divider` | `#2E3137` | Rows inside a surface |
+| `--color-hover` | `#262A30` | Row hover / highlighted option |
+| `--color-reel` / `--color-reel-dim` | `#C9CCD2` / `#5C616A` | Reel aluminum / a reel you can't reach yet |
+| `--color-face-1` → `--color-face-2` | `#4A4F57` → `#2A2D33` | Hub gradient behind initials |
+| `--color-cta-bg` / `--color-cta-fg` | `#EDEEEA` / `#15171B` | Primary buttons (light on dark) |
+| `--color-stock-blue/amber/red/green` | `#5B8DEF` `#E0A33A` `#F06A5F` `#3FB57A` | Film stock, one per film in this order (`lib/reel-model.ts` STOCKS) |
+| `--color-accent` | `#E0A33A` | The one highlight: tap-to-connect ring, pending ring, focus ring, selected radio |
+| `--color-error` | `#FF6B6B` | Error text |
 
-### Difficulty-Based Accent Colors
-Set dynamically via `document.documentElement.style.setProperty` in `Game.tsx`:
-| Difficulty | Hex | RGB | Description |
-|-----------|-----|-----|-------------|
-| Easy | `#4ade80` | `74, 222, 128` | Green |
-| Medium | `#E8547C` | `232, 84, 124` | Coral pink |
-| Hard | `#E63946` | `230, 57, 70` | Blood red |
-| Default (no selection) | `#E63946` | `230, 57, 70` | Blood red |
+No per-difficulty accent any more (removed 2026-09-27).
 
 ### Typography
-| Element | Font | Weight | Size | Style |
-|---------|------|--------|------|-------|
-| Body / UI | Geist Sans (`--font-geist-sans`) | 400 | 14-16px | Normal |
-| Labels | Geist Sans | 400-500 | 10-12px | Uppercase, tracked |
-| Results score label | Playfair Display (`--font-playfair`) | 700 | 3xl-4xl | Bold italic |
+Overpass everywhere, IBM Plex Mono for years, timecode and counts. Scale (px): `2xs` 11 · `xs` 12 · `sm` 13 · `md` 14 · `base` 16 · `lg` 20 · `xl` 22 · `2xl` 36 · `3xl` 48. Inputs stay 16px so iOS never zooms. People 800, films 600, interface 400. Sentence case; no tracked uppercase labels.
 
-### Visual Effects
-- **Grain overlay**: CSS `repeating-conic-gradient` on `.grain-bg::before`, `mix-blend-mode: overlay`, very subtle (0.008/0.005 opacity)
-- **Card animations**: flip-in, glow, bob, wave, placeholder-appear
-- **Connector sway**: SVG bezier with `string-sway` animation
-- **Reduced motion**: `@media (prefers-reduced-motion: reduce)` kills all animations/transitions
+### Radius
+`--radius-sm` 4px (label plates), `--radius-md` 10px (inputs, buttons, panels). Reels are circles.
 
 ## Component Specs
 
-### Chain Cards
-| Variant | Height | Aspect | Notes |
-|---------|--------|--------|-------|
-| Start/End (bookend) | `30dvh` → shrinks to `20dvh` min | 3:4 | Shrinks 3dvh per chain link added |
-| Intermediate (actor/media) | 70% of bookend height, min `14dvh` | 3:4 | Gentle bob animation |
-| Placeholder | Same as intermediate | 3:4 | Dashed border, icon-based |
+### The line (`ReelStage` + `film-stage.ts`)
+- **Reel**: 64px, `ReelPlate` (plate r31, six cut-outs r5.4 at r21) + 30px face at the hub + name plate below (800 14px, max 130px, balanced wrap).
+- **States**: target `waiting` (dim plate) → `ready` (amber ring breathing at `readyPulseMs`, "Tap/Click to connect") → `closed`. Current actor `pending` (static dashed amber ring, "Checking…").
+- **Film**: verlet rope, 18 points, 16px stock with sprocket holes + frame lines. Dangling film = 120px, labeled at its free end; hung film labeled under its middle.
+- **Layout** (`lib/reel-layout.ts`): phones zigzag (x 27% / 73%, gap 140–240px); ≥768 runs left to right (spacing 180–480px, centered). Either grows past the viewport and the stage scrolls to keep the current actor in view.
+- **No idle motion**: the sim stops after 40 still frames. Reduced motion settles everything instantly.
+- Undo + Start over: 44px icon buttons in the stage's top-right corner.
 
-### Animations
-- Card flip-in (400ms), card glow (800ms), card bob (3-4s), card wave (500ms)
-- String sway on connectors (3-4s)
-- Placeholder appear (300ms)
-- Fade-in-up (400ms)
+### Motion (`lib/motion.ts`)
+- Physics: gravity 2200 px/s², damping 0.985, slack 1.10 rest → 1.01 close → 1.078 relax.
+- Close: clip-on 280ms (40px lift) → reel click 320ms, `cubic-bezier(.2,.8,.2,1.25)` → +420ms taut 380ms → settle 900ms → results (1980ms total). Tap anywhere skips.
+- Reels arrive with a 280ms scale-in. Wrong pick: 600ms shake on the current reel + search, plus `playErrorSound`.
+- Results slide up 300ms `cubic-bezier(.2,0,0,1)`.
+- Reveal: flips at 500 / 1500ms (500ms each), title at 2500ms, cards fade out at 4500ms (500ms), START_GAME at 5000ms.
 
 ### Sound Effects (`lib/sounds.ts`)
 All synthesized via Web Audio API — no audio files needed.
 | Sound | Trigger | Description |
 |-------|---------|-------------|
 | `playCardSound()` | Valid media/person selected | Ascending sine chime (660→880Hz, 250ms) |
+| `playErrorSound()` | Rejected pick | Two short triangle buzzes (196→147Hz, 80ms, 90ms apart) |
 | `playRemoveSound()` | Undo or reset | Descending triangle thud (400→180Hz) + noise burst |
 | `playWinSound()` | Target tapped (chain closes) | C major arpeggio (C5-E5-G5-C6, 120ms spacing) |
 | `playFlipSound()` | Card flip during reveal | Bandpass-filtered noise burst + sine undertone (~300ms) |
 
-### Reveal Screen (`RevealScreen.tsx`)
-- **Purpose**: Replaces dead "Finding pair..." wait with cinematic card-flip reveal
-- **Phase machine**: `"loading" → "flip-left" → "flip-right" → "title" → "slide-out"`
-- **Layout mirrors ChainBuilder**: same header position (`pt-6 md:pt-12`), same flex spacers (`flex-[0.3] md:flex-[0.8]`), same bottom padding (`pb-24 md:pb-0`, `mb-20 md:mb-2`) — so cards end up in the same position as PlayingScreen
-- **Card sizing**: `min(42dvh, 50vw)` centered → shrinks to `30dvh` during slide-out (matches bookend height)
-- **3D card flip**: CSS `transform-style: preserve-3d` + `backface-visibility: hidden` + `rotateY(180deg)`
-- **Slide-to-edges**: `useLayoutEffect` calculates `translateX` deltas based on POST-SHRINK flex positions so cards land at `px-3 md:px-8` from edges (matching PlayingScreen exactly)
-- **Timeline**: +500ms flip-left, +1500ms flip-right, +2500ms title, +4500ms slide-out, +5400ms dispatch START_GAME
-- **Image preloading**: `new Image()` with `onload` callbacks before triggering flips
-- **Share links use the reveal too**: `/play?pair=id-id` → `presetPuzzle` (already verified) → same timeline
+### Results + share
+- Score sits in an 88px reel hub (`+2`, `Par`, `−1`, `—`), headline in words (`scoreHeadline`), then "Your line" beside "Express (par N)" as `LineSummary`.
+- Wide screens show the share card preview + share text beside it. Phones share the PNG card with the text when the share sheet takes files.
+- Share text: `Six Degrees · Par 2` / `🟦🟧💡 +1` / link (one square of stock per film, 💡 per hint).
 
-### Mobile Responsiveness
-- **Target**: 390px+ (iPhone 14 and up)
-- **Approach**: Mobile-first CSS, `md:` breakpoint (768px) for desktop
-- **Search bar**: Fixed to bottom of screen on mobile (`fixed bottom-0 z-40`), inline under placeholder on desktop
-- **Search results**: Open upward on mobile (`bottom-full`), downward on desktop
-- **Chain**: Horizontal scroll preserved, right-edge gradient fade as scroll hint on mobile
-- **Safe area**: `pb-[env(safe-area-inset-bottom,12px)]` on sticky search bar for iPhone home indicator
-- **Viewport**: `maximumScale: 1, userScalable: false` to prevent iOS auto-zoom on input focus
-- **Touch targets**: Undo button `w-8 h-8` on mobile (vs `w-6 h-6` desktop)
-- **Reduced motion**: `prefers-reduced-motion: reduce` kills all animation/transition durations
+### Accessibility
+Amber `:focus-visible` ring (round on reels; inputs use their border), styled `::selection`, `user-select: none` on buttons, 44px minimum targets, pinch zoom allowed, difficulty radiogroup with arrow keys, `aria-live` for picks / checking / round start, results focus their headline, search keeps focus through checks (read-only, never disabled).
+
+### Mobile
+Target 375px+. Search + hints sit at the bottom of an `h-dvh` column (not fixed) with the safe-area inset; results open upward at every width.
 
 ## Backlog
 
@@ -256,10 +247,11 @@ All synthesized via Web Audio API — no audio files needed.
 - [x] Fix difficulty classifier — filter non-acting credits, key on `media_type:id`, sort by `vote_count` (2026-08-06)
 - [x] Solver + par (2026-09-25) — Hard mode removed instead: the famous pool has almost no par-3 pairs
 - [x] ESLint flat config (`eslint.config.mjs`) — `npm run lint` runs; 0 errors, 12 warnings (2026-09-25)
-- [ ] Update accent color on difficulty selection (not just on game start)
-- [ ] Increase `--color-text-secondary` to `#8A8A8A`+ for WCAG AA contrast
-- [ ] Add error/invalid sound for failed validation
-- [ ] Reduce bob/sway animations during active play
+- [x] Accent on difficulty selection — moot: per-difficulty accent removed in Reel Line (2026-09-27)
+- [x] Secondary text contrast — `#9EA3AB` passes AA (2026-09-27)
+- [x] Error/invalid sound — `playErrorSound` (2026-09-27)
+- [x] Idle bob/sway — gone; nothing moves unless the player acted (2026-09-27)
+- [ ] Reel Line follow-ups — see `docs/REEL-LINE-CRITIQUE-2026-09-27.md` (bigger faces, labels chopping strips, empty phone stage, reel exits, amber's two jobs)
 
 ### Lower Priority (features + delight)
 - [ ] Async competitive mode (challenge a friend with same pair)
@@ -268,8 +260,7 @@ All synthesized via Web Audio API — no audio files needed.
 - [ ] Lightweight auth (Google/GitHub) for stats + leaderboards
 - [x] Optimal-path comparison on results (2026-09-25, plain lists; styling in the design pass)
 - [ ] Step counter during gameplay
-- [ ] Onboarding for first-time players
-- [ ] Hover states on chain cards (show full name, year)
+- [x] Onboarding: example line on home (2026-09-27); a first-visit how-to modal is still open
 
 ## Session End
 Before ending any session:
@@ -278,12 +269,14 @@ Before ending any session:
 3. If any features are partially complete, describe what's left
 
 ## Current State
-_Updated by Claude — 2026-09-25 (Session 6, relaunch step 3: core loop v2)_
-- **LIVE 2026-09-26:** `core-loop-v2` fast-forwarded into `main` and auto-deployed to https://six-degrees-topaz.vercel.app (~40s). Production smoke 19/19 and a real Easy round played at 375px.
-- **Verified locally:** `npm test` 54/54, `npm run lint` 0 errors (11 warnings), `npm run build` clean, `npm run smoke -- http://localhost:3100` 19/19. Every build item played in Playwright at 375 and 1440 (Easy + Medium; wins, give-ups, hints, share links, Play Again).
-- **This session (commits `7da0df8`…):** spec + plan in `docs/superpowers/`; costar graph + solver (`lib/solver/`, `scripts/build-graph.ts`, `data/costar-graph.json`); `/api/puzzle`, `/api/route`, `/api/tmdb/filmography`; verify-pair deleted; par in state; par-relative scoring + paused clock + Wordle shake on rejected picks; stuck exits (reset clock, hint ladder, show me a route); tap-to-close win moment (`lib/motion.ts`); results route comparison + share line; fair-puzzle floor; exact-match search ranking; Play Again through the reveal.
-- **Open for Marco:** confirm motion values (`lib/motion.ts`); rules call on animated-TV voice cameos; merge + deploy. Details in `NEXT.md`.
-- **Research used:** `~/Obsidian/marcowits/resources/research/2026-09-25-daily-web-game-patterns.md` (Wordle/Connections/Strands timings, share formats).
+_Updated by Claude — 2026-09-27 (Session 7, relaunch step 4 phase 2: Reel Line build)_
+- **Built on branch `reel-line` (not merged, not deployed):** five commits `b10fe30` tokens → `39814b0` reels + hanging film → `c9f389c` results + share card → `2d075eb` accessibility → `00ab14b` onboarding line, reveal restyle, polish. Values approved by Marco 2026-09-27 (recorded in `NEXT.md`).
+- **Verified locally:** `npm test` 65/65, `npm run lint` 0 errors, `npm run build` clean, `npm run smoke -- http://localhost:3005` 19/19. Played in Playwright at 375 and 1440: Easy + Medium wins, wrong pick (shake + sound), undo (film falls back), hints, give up, Play Again, reduced motion, and one full round keyboard-only.
+- **Critique:** `docs/REEL-LINE-CRITIQUE-2026-09-27.md`. Top items: faces too small (30px hub), labels chop strips, empty phone stage, reels have no exit, amber is both a stock color and the highlight.
+- **Open for Marco:** play it (`npm run dev`, port 3005) and decide merge; pending-state motion (a slow reel turn needs a value); critique items; the voice-cameo rules call still stands (Family Guy / The Simpsons keep showing up in best routes).
+
+### Session 6 (2026-09-25, relaunch step 3: core loop v2)
+- Core loop v2 live 2026-09-26 (prod smoke 19/19): costar graph + solver, par scoring, paused clock, hint ladder, give up, tap-to-close win, route comparison, fair-puzzle floor, Play Again via reveal.
 
 ### Session 5 (2026-09-25, relaunch step 1: API hardening)
 - Deployed to production; smoke 14/14. Shared rulebook `lib/tmdb-rules.ts`, `scripts/smoke.ts`, committed reach-ranked pool, TMDb attribution, caching + rate limit, ESLint config, `AGENTS.md` symlink.
