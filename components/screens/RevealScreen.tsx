@@ -1,18 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGame } from "@/lib/GameContext";
 import { getProfileUrl } from "@/lib/actor-pool";
 import { fetchPuzzle, type Puzzle } from "@/lib/tmdb";
 import { playFlipSound } from "@/lib/sounds";
+import { REVEAL_MOTION as M, revealStartMs } from "@/lib/motion";
+import { ReelPlate } from "@/components/round/Reel";
 import type { ActorPair } from "@/lib/types";
 
-type RevealPhase =
-  | "loading"
-  | "flip-left"
-  | "flip-right"
-  | "title"
-  | "slide-out";
+type RevealPhase = "loading" | "flip-left" | "flip-right" | "title" | "exit";
 
 interface RevealScreenProps {
   // A shared pair that /api/puzzle already verified; skips dealing a new one.
@@ -30,10 +27,7 @@ export function RevealScreen({ presetPuzzle = null, onStarted }: RevealScreenPro
   const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState<RevealPhase>("loading");
   const [imagesReady, setImagesReady] = useState(false);
-  const [slideActive, setSlideActive] = useState(false);
   const loadedCount = useRef(0);
-  const leftRef = useRef<HTMLDivElement>(null);
-  const rightRef = useRef<HTMLDivElement>(null);
 
   // --- Deal a verified pair (the server solves par; no unverified fallback) ---
   useEffect(() => {
@@ -87,27 +81,25 @@ export function RevealScreen({ presetPuzzle = null, onStarted }: RevealScreenPro
   useEffect(() => {
     if (!pair || par === null || !imagesReady) return;
 
-    const timeline: { p: RevealPhase; delay: number }[] = [
-      { p: "flip-left", delay: 500 },
-      { p: "flip-right", delay: 1500 },
-      { p: "title", delay: 2500 },
-      { p: "slide-out", delay: 4500 },
+    const timeline: { p: RevealPhase; at: number }[] = [
+      { p: "flip-left", at: M.flipLeftAt },
+      { p: "flip-right", at: M.flipRightAt },
+      { p: "title", at: M.titleAt },
+      { p: "exit", at: M.exitAt },
     ];
 
-    const timers = timeline.map(({ p, delay }) =>
+    const timers = timeline.map(({ p, at }) =>
       setTimeout(() => {
-        if (p === "flip-left" || p === "flip-right") {
-          playFlipSound();
-        }
+        if (p === "flip-left" || p === "flip-right") playFlipSound();
         setPhase(p);
-      }, delay),
+      }, at),
     );
 
-    // Dispatch START_GAME after slide completes
+    // The playing screen's reels arrive as the cards finish fading.
     const startTimer = setTimeout(() => {
       dispatch({ type: "START_GAME", pair, difficulty, par, now: Date.now() });
       onStarted?.();
-    }, 5400);
+    }, revealStartMs());
 
     return () => {
       timers.forEach(clearTimeout);
@@ -115,153 +107,70 @@ export function RevealScreen({ presetPuzzle = null, onStarted }: RevealScreenPro
     };
   }, [pair, par, imagesReady, difficulty, dispatch, onStarted]);
 
-  // --- Compute and apply slide transforms ---
-  useLayoutEffect(() => {
-    if (phase !== "slide-out") return;
-    if (!leftRef.current || !rightRef.current) return;
-
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const pad = vw >= 768 ? 32 : 12;
-
-    // Calculate where flex will place cards AFTER they shrink to 30dvh.
-    // Both height and transform transitions use the same easing + duration,
-    // so the intermediate positions track perfectly.
-    const finalH = vh * 0.3; // 30dvh in px
-    const finalW = finalH * 0.75; // aspect 3:4
-    const gap = vw >= 768 ? 40 : 24; // md:gap-10 (2.5rem) : gap-6 (1.5rem)
-    const totalW = 2 * finalW + gap;
-    const futureLeftX = (vw - totalW) / 2;
-    const futureRightX = futureLeftX + finalW + gap;
-
-    // Deltas from future flex position to target edge positions
-    const leftDelta = pad - futureLeftX;
-    const rightDelta = (vw - pad - finalW) - futureRightX;
-
-    // Apply after a frame so the browser registers the transition
-    requestAnimationFrame(() => {
-      if (leftRef.current) {
-        leftRef.current.style.transform = `translateX(${leftDelta}px)`;
-      }
-      if (rightRef.current) {
-        rightRef.current.style.transform = `translateX(${rightDelta}px)`;
-      }
-      setSlideActive(true);
-    });
-  }, [phase]);
-
   const leftRevealed = phase !== "loading";
   const rightRevealed = phase !== "loading" && phase !== "flip-left";
-  const showTitle = phase === "title" || phase === "slide-out";
-  const isSliding = phase === "slide-out";
+  const showTitle = phase === "title" || phase === "exit";
+  const exiting = phase === "exit";
 
   return (
     <div
-      className="fixed inset-0 flex flex-col pb-24 md:pb-0"
-      style={{ background: "var(--color-bg)", zIndex: 50 }}
+      className="fixed inset-0 z-50 bg-bg flex flex-col"
+      style={
+        {
+          "--flip-ms": `${M.flipMs}ms`,
+          "--title-ms": `${M.titleFadeMs}ms`,
+          "--exit-ms": `${M.exitMs}ms`,
+          "--float-ms": `${M.idleFloatMs}ms`,
+        } as React.CSSProperties
+      }
     >
-      {/* Header — matches ChainBuilder header */}
-      <div
-        className={`text-center pt-6 md:pt-12 pb-3 md:pb-4 transition-opacity duration-500 ${showTitle ? "opacity-100" : "opacity-0"}`}
-        style={{ minHeight: "5rem" }}
+      {/* Header: same place as the playing screen's */}
+      <header
+        className={`flex flex-col gap-1.5 px-5 md:px-8 pt-5 md:pt-8 w-full md:max-w-[1120px] md:mx-auto min-h-24 transition-opacity duration-[var(--title-ms)] ${
+          showTitle ? "opacity-100" : "opacity-0"
+        }`}
       >
         {pair && (
           <>
-            <p
-              className="text-[10px] uppercase tracking-[0.2em] mb-2"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
-              Connect
+            <p className="text-sm text-text-secondary capitalize">
+              {difficulty}
+              {par !== null && ` · Par ${par}`}
             </p>
-            <h1
-              className="text-lg md:text-2xl font-bold"
-              style={{ color: "var(--color-text)" }}
-            >
-              {pair.start.name}
-              <span style={{ color: "var(--color-text-secondary)" }}>
-                {" "}→{" "}
-              </span>
-              {pair.end.name}
+            <h1 className="text-xl font-extrabold tracking-[-0.01em] text-balance">
+              {pair.start.name} to {pair.end.name}
             </h1>
           </>
         )}
-      </div>
+      </header>
 
-      {/* Top spacer — matches ChainBuilder */}
-      <div className="flex-[0.3] md:flex-[0.8]" />
-
-      {/* Cards — matches ChainDisplay vertical position */}
-      <div className="flex items-center justify-center py-4">
-        <div className="flex items-center gap-6 md:gap-10">
-          <div
-            ref={leftRef}
-            style={{
-              transition: isSliding
-                ? "transform 800ms cubic-bezier(0.4, 0, 0.2, 1)"
-                : "none",
-            }}
-          >
-            <RevealCard
-              actor={pair?.start ?? null}
-              revealed={leftRevealed}
-              flipping={phase === "flip-left"}
-              floating={phase === "loading"}
-              floatDelay={0}
-              shrinking={slideActive}
-            />
-          </div>
-          <div
-            ref={rightRef}
-            style={{
-              transition: isSliding
-                ? "transform 800ms cubic-bezier(0.4, 0, 0.2, 1)"
-                : "none",
-            }}
-          >
-            <RevealCard
-              actor={pair?.end ?? null}
-              revealed={rightRevealed}
-              flipping={phase === "flip-right"}
-              floating={phase === "loading"}
-              floatDelay={0.4}
-              shrinking={slideActive}
-            />
-          </div>
+      {/* The two cards */}
+      <div className="flex-1 flex items-center justify-center">
+        <div className={`flex items-center gap-6 md:gap-10 ${exiting ? "reveal-exit" : ""}`}>
+          <RevealCard actor={pair?.start ?? null} revealed={leftRevealed} flipping={phase === "flip-left"} floating={phase === "loading"} floatDelay={0} />
+          <RevealCard actor={pair?.end ?? null} revealed={rightRevealed} flipping={phase === "flip-right"} floating={phase === "loading"} floatDelay={0.4} />
         </div>
       </div>
 
-      {/* Bottom spacer — matches ChainBuilder */}
-      <div className="flex-[0.3] md:flex-[0.8]" />
-
-      {/* Bottom area — matches ChainBuilder reset button zone */}
-      <div className="text-center mb-20 md:mb-2">
+      <div className="min-h-24 flex items-start justify-center px-5">
         {dealError ? (
           <div className="flex flex-col items-center gap-3">
-            <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
-              Couldn&apos;t deal a pair.
-            </p>
+            <p className="text-base text-text-secondary">Couldn&apos;t deal a pair.</p>
             <button
               onClick={() => {
                 setDealError(false);
                 setAttempt((n) => n + 1);
               }}
-              className="px-8 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
-              style={{
-                background: "transparent",
-                color: "var(--color-text-secondary)",
-                border: "1px solid var(--color-border)",
-              }}
+              className="min-h-12 px-8 rounded-md border-[1.5px] border-border font-semibold transition-transform active:scale-[0.97]"
             >
               Retry
             </button>
           </div>
-        ) : phase === "loading" && (
-          <p
-            className="text-xs uppercase tracking-[0.2em] animate-pulse"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
-            Shuffling actors...
-          </p>
+        ) : (
+          phase === "loading" && (
+            <p className="text-sm text-text-secondary" role="status">
+              Shuffling actors…
+            </p>
+          )
         )}
       </div>
     </div>
@@ -276,89 +185,41 @@ interface RevealCardProps {
   flipping: boolean;
   floating: boolean;
   floatDelay: number;
-  shrinking: boolean;
 }
 
-function RevealCard({
-  actor,
-  revealed,
-  flipping,
-  floating,
-  floatDelay,
-  shrinking,
-}: RevealCardProps) {
-  const imgSrc =
-    actor?.profilePath ? getProfileUrl(actor.profilePath, "w500") : "";
+// Face down: a reel on a blank card. Face up: the actor.
+function RevealCard({ actor, revealed, flipping, floating, floatDelay }: RevealCardProps) {
+  const imgSrc = actor?.profilePath ? getProfileUrl(actor.profilePath, "w500") : "";
 
   return (
-    <div
-      style={{
-        height: shrinking ? "30dvh" : "min(42dvh, 50vw)",
-        aspectRatio: "3 / 4",
-        perspective: "800px",
-        transition: shrinking
-          ? "height 800ms cubic-bezier(0.4, 0, 0.2, 1)"
-          : "none",
-      }}
-    >
-      <div
-        className={`reveal-card-inner ${revealed ? "reveal-card-flipped" : ""}`}
-        style={{
-          transition: flipping ? "transform 500ms ease-out" : "none",
-        }}
-      >
-        {/* Card back (face-down) */}
-        <div className="reveal-card-face reveal-card-back">
-          <div
-            className="w-full h-full flex items-center justify-center"
-            style={{
-              background: "var(--color-surface)",
-              border: "1px solid var(--color-border)",
-              animation: floating
-                ? `card-idle-float 2.5s ease-in-out ${floatDelay}s infinite`
-                : "none",
-            }}
-          >
-            <span
-              className="text-5xl font-bold select-none"
-              style={{ color: "var(--color-border)" }}
+    <div className="flex flex-col items-center gap-2">
+      <div style={{ height: "min(42dvh, 44vw)", aspectRatio: "3 / 4", perspective: "800px" }}>
+        <div
+          className={`reveal-card-inner ${revealed ? "reveal-card-flipped" : ""}`}
+          style={{ transition: flipping ? "transform var(--flip-ms) ease-out" : "none" }}
+        >
+          <div className="reveal-card-face reveal-card-back">
+            <div
+              className="w-full h-full grid place-items-center rounded-md bg-surface border border-divider"
+              style={{ animation: floating ? `card-idle-float var(--float-ms) ease-in-out ${floatDelay}s infinite` : "none" }}
             >
-              ?
-            </span>
+              <ReelPlate className="w-1/2 h-auto opacity-40 [&_.reel-plate]:fill-reel-dim [&_.reel-cut]:fill-surface" />
+            </div>
           </div>
-        </div>
 
-        {/* Card front (face-up) */}
-        <div className="reveal-card-face reveal-card-front">
-          <div
-            className="w-full h-full overflow-hidden"
-            style={{
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-            }}
-          >
-            {imgSrc ? (
-              <img
-                src={imgSrc}
-                alt={actor?.name ?? ""}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div
-                className="w-full h-full"
-                style={{ background: "var(--color-surface)" }}
-              />
-            )}
+          <div className="reveal-card-face reveal-card-front">
+            <div className="w-full h-full overflow-hidden rounded-md outline outline-1 -outline-offset-1 outline-white/10 bg-surface">
+              {imgSrc && (
+                // eslint-disable-next-line @next/next/no-img-element -- preloaded TMDb image
+                <img src={imgSrc} alt={actor?.name ?? ""} className="w-full h-full object-cover" />
+              )}
+            </div>
           </div>
-          {actor && (
-            <p
-              className="text-[10px] md:text-xs font-medium uppercase tracking-[0.08em] text-center mt-2"
-              style={{ color: "var(--color-text)" }}
-            >
-              {actor.name}
-            </p>
-          )}
         </div>
       </div>
+      <p className={`text-md font-extrabold text-center transition-opacity duration-[var(--flip-ms)] ${revealed && actor ? "opacity-100" : "opacity-0"}`}>
+        {actor?.name ?? " "}
+      </p>
     </div>
   );
 }

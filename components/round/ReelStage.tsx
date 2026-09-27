@@ -163,7 +163,7 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
               ref={targetRef}
               type="button"
               data-station={s.key}
-              className={`reel ${state}`}
+              className={`reel reel-in ${state}`}
               disabled={state !== "ready"}
               onClick={onCloseChain}
               aria-label={state === "ready" && openFilm ? `Connect ${s.name} through ${openFilm}` : s.name}
@@ -171,7 +171,7 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
               {body}
             </button>
           ) : (
-            <div key={s.key} data-station={s.key} className={`reel ${state} ${s.role === "start" ? "" : "reel-in"}`}>
+            <div key={s.key} data-station={s.key} className={`reel reel-in ${state}`}>
               {body}
             </div>
           );

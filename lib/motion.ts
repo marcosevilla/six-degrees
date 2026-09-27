@@ -37,3 +37,18 @@ export function closeBeatMs(): number {
   return REEL_MOTION.clipOnMs + REEL_MOTION.clickToTautMs + REEL_MOTION.tautMs + REEL_MOTION.settleMs;
 }
 
+
+// The reveal: two cards flip, the pair is named, then the cards fade out and
+// the reels arrive. Exit is no longer than the flip (exits softer than enters).
+export const REVEAL_MOTION = {
+  flipLeftAt: 500,
+  flipRightAt: 1500,
+  titleAt: 2500,
+  exitAt: 4500,
+  flipMs: 500,
+  titleFadeMs: 500,
+  exitMs: 500,
+  idleFloatMs: 2500, // face-down cards float while a pair is dealt
+} as const;
+
+export const revealStartMs = () => REVEAL_MOTION.exitAt + REVEAL_MOTION.exitMs;

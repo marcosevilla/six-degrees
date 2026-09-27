@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useGame } from "@/lib/GameContext";
 import { fetchActorPool } from "@/lib/actor-pool";
 import { Difficulty } from "@/lib/types";
+import { ExampleLine } from "@/components/round/ExampleLine";
 
 const DIFFICULTY_CONFIG: Record<Difficulty, { label: string; description: string }> = {
   easy: { label: "Easy", description: "They share a movie or show" },
@@ -40,8 +41,12 @@ export function HomeScreen() {
       <div className="flex flex-col items-center gap-2 text-center">
         <p className="text-sm text-text-secondary">Connect any two actors</p>
         <h1 className="text-3xl font-extrabold tracking-[-0.02em]">Six Degrees</h1>
-        <p className="text-base text-text-secondary max-w-[300px] text-pretty mt-1">
-          Build a chain of movies, shows and co‑stars between two actors, in as few films as you can.
+      </div>
+
+      <div className="flex flex-col items-center gap-3">
+        <ExampleLine />
+        <p className="text-base text-text-secondary max-w-[300px] text-center text-pretty">
+          Actors in the same movie or show are one film apart. Link your pair in as few films as you can.
         </p>
       </div>
 

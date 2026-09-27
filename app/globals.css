@@ -66,6 +66,10 @@
   outline-offset: 6px;
   border-radius: 50%;
 }
+/* Inputs show focus with their amber border instead. */
+input:focus-visible {
+  outline: none;
+}
 
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 40%, transparent);
@@ -275,6 +279,14 @@ body {
   50% {
     transform: translateY(-6px);
   }
+}
+
+/* The pair's cards fade out as the reels arrive. Timing: lib/motion.ts. */
+@keyframes reveal-exit {
+  to { opacity: 0; transform: scale(0.96); }
+}
+.reveal-exit {
+  animation: reveal-exit var(--exit-ms, 500ms) ease-in forwards;
 }
 
 /* Hide scrollbars on the stage and hint strip */
