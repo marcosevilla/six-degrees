@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/GameContext";
-import { buildShareText, elapsedMs, formatTime, getChainSteps, getScoreLabel, scoreVsPar } from "@/lib/scoring";
-import { ChainDisplay } from "@/components/round/ChainDisplay";
-import { RouteList } from "@/components/round/RouteList";
+import {
+  buildShareText,
+  elapsedMs,
+  formatTimecode,
+  getChainSteps,
+  scoreHeadline,
+  scoreVsPar,
+} from "@/lib/scoring";
+import { CARD_RATIO, drawShareCard, shareCardBlob, type ShareCardData } from "@/lib/share-card";
+import { REEL_MOTION } from "@/lib/motion";
+import { ReelPlate } from "@/components/round/Reel";
+import { LineSummary } from "@/components/round/LineSummary";
 
 export function ResultsScreen() {
   const { state, dispatch } = useGame();
@@ -16,26 +25,33 @@ export function ResultsScreen() {
   const elapsed = elapsedMs(state, state.endTime ?? 0);
   const gaveUp = state.endReason === "gaveUp";
   const delta = scoreVsPar(steps, hintsUsed, par);
-  const label = gaveUp ? "Gave up" : getScoreLabel(delta);
+  // Golf-style hub: +2, Par, −1.
+  const hub = gaveUp ? "—" : delta === 0 ? "Par" : delta > 0 ? `+${delta}` : `−${-delta}`;
+
+  const card: ShareCardData = { par, films: steps, hints: hintsUsed, score: gaveUp ? "Gave up" : hub };
 
   const shareUrl = actorPair
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/play?pair=${actorPair.start.id}-${actorPair.end.id}`
     : "";
+  const shareText = buildShareText({ par, steps, hintsUsed, endReason: state.endReason ?? "won", url: shareUrl });
 
-  // Like NYT Games: the share sheet on phones, the clipboard everywhere else.
+  // Like NYT Games: the share sheet on phones (with the card when the phone
+  // takes files), the clipboard everywhere else.
   const handleShare = async () => {
-    const text = buildShareText({ par, steps, hintsUsed, endReason: state.endReason ?? "won", url: shareUrl });
     const isPhone = window.matchMedia("(pointer: coarse)").matches;
-    if (isPhone && navigator.share && navigator.canShare?.({ text }) !== false) {
+    if (isPhone && navigator.share) {
       try {
-        await navigator.share({ text });
+        const blob = await shareCardBlob(card);
+        const files = blob ? [new File([blob], "six-degrees.png", { type: "image/png" })] : [];
+        const data = files.length && navigator.canShare?.({ files, text: shareText }) ? { files, text: shareText } : { text: shareText };
+        await navigator.share(data);
         return;
       } catch (err) {
         if ((err as Error).name === "AbortError") return; // they closed the sheet
       }
     }
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(shareText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -48,111 +64,105 @@ export function ResultsScreen() {
     dispatch({ type: "BEGIN_REVEAL", difficulty: difficulty ?? "medium" });
   };
 
+  const summary = gaveUp
+    ? `The express needs ${par}.`
+    : delta < 0
+      ? `You found a shorter line than the express we know (${par}).`
+      : `${steps} film${steps === 1 ? "" : "s"}${hintsUsed > 0 ? ` and ${hintsUsed} hint${hintsUsed === 1 ? "" : "s"}` : ""}. The express needs ${par}.`;
+
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center gap-4 md:gap-6 px-4 md:px-6 py-8 md:py-12 fade-in-up">
-      {/* Difficulty + Score label */}
-      {difficulty && (
-        <p
-          className="text-[10px] uppercase tracking-[0.2em]"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          {difficulty} · Par {par}
-        </p>
-      )}
-      <h1
-        className="text-2xl font-extrabold -mt-2"
-        style={{ color: "var(--color-text)" }}
-      >
-        {label}
-      </h1>
-
-      {/* Stats: score is steps against par; hints count as steps; time only breaks ties */}
-      <div className="flex gap-4 md:gap-8 items-center">
-        <div className="text-center">
-          <p className="text-2xl md:text-3xl font-bold tabular-nums" style={{ color: "var(--color-accent)" }}>
-            {steps}
-          </p>
-          <p className="text-xs uppercase tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
-            {steps === 1 ? "Step" : "Steps"}
-          </p>
+    <main
+      className="results-in min-h-dvh flex flex-col md:flex-row md:items-center md:justify-center gap-10 md:gap-16 px-5 py-8 md:py-12"
+      style={{ "--results-ms": `${REEL_MOTION.resultsSlideMs}ms`, "--results-ease": REEL_MOTION.resultsEasing } as React.CSSProperties}
+    >
+      <section className="w-full flex-1 md:flex-none md:max-w-[440px] flex flex-col gap-6">
+        <div className="flex justify-between items-center text-sm text-text-secondary">
+          <span className="capitalize">
+            {difficulty} · Par {par}
+          </span>
+          <span className="font-mono text-xs tabular-nums" aria-label="Time">
+            {formatTimecode(elapsed)}
+          </span>
         </div>
-        <div className="w-px h-8" style={{ background: "var(--color-border)" }} />
-        <div className="text-center">
-          <p className="text-2xl md:text-3xl font-bold tabular-nums" style={{ color: "var(--color-text)" }}>
-            {par}
-          </p>
-          <p className="text-xs uppercase tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
-            Par
-          </p>
+
+        {/* The score sits in a reel's hub */}
+        <div className="flex items-center gap-4">
+          <div className="relative w-[88px] h-[88px] flex-none">
+            <ReelPlate className="absolute inset-0 w-full h-full" />
+            <span className="absolute left-1/2 top-1/2 w-[42px] h-[42px] -ml-[21px] -mt-[21px] rounded-full bg-bg grid place-items-center font-extrabold text-lg tabular-nums">
+              {hub}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1 min-w-0">
+            <h1 className="text-lg font-extrabold">{scoreHeadline(delta, gaveUp)}</h1>
+            <p className="text-sm text-text-secondary text-pretty">{summary}</p>
+          </div>
         </div>
-        {hintsUsed > 0 && (
-          <>
-            <div className="w-px h-8" style={{ background: "var(--color-border)" }} />
-            <div className="text-center">
-              <p className="text-2xl md:text-3xl font-bold tabular-nums" style={{ color: "var(--color-text)" }}>
-                +{hintsUsed}
-              </p>
-              <p className="text-xs uppercase tracking-[0.15em]" style={{ color: "var(--color-text-secondary)" }}>
-                {hintsUsed === 1 ? "Hint" : "Hints"}
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-      <p className="text-[10px] uppercase tracking-[0.2em] tabular-nums -mt-2" style={{ color: "var(--color-text-secondary)" }}>
-        Time {formatTime(elapsed)}
-      </p>
 
-      {/* Completed chain visualization */}
-      {actorPair && !gaveUp && (
-        <ChainDisplay
-          chain={chain}
-          currentSearchMode="media"
-          targetActor={actorPair.end}
-          isComplete={true}
-          celebrate={false}
-        />
-      )}
+        <div className="grid grid-cols-2 gap-4">
+          <LineSummary title={gaveUp ? "Your chain" : "Your line"} links={chain} emptyText="No links yet" />
+          <LineSummary title={`Express (par ${par})`} links={state.bestRoute} express emptyText="Express unavailable" />
+        </div>
 
-      {/* Your route against the best route we know */}
-      <div className="grid grid-cols-2 gap-6 md:gap-10 w-full max-w-[560px] px-2">
-        <RouteList
-          title={gaveUp ? `Your chain (${steps})` : `Your route (${steps})`}
-          links={chain}
-          emptyText="No links yet"
-        />
-        <RouteList title={`Best route (par ${par})`} links={state.bestRoute} emptyText="Best route unavailable" />
-      </div>
-      {!gaveUp && delta < 0 && (
-        <p className="text-xs text-center max-w-[320px]" style={{ color: "var(--color-text-secondary)" }}>
-          You found a shorter route than the best one we know.
-        </p>
-      )}
+        <div className="flex gap-2.5 mt-auto md:mt-2">
+          <button
+            onClick={handleShare}
+            className="flex-1 min-h-12 rounded-md bg-cta-bg text-cta-fg font-extrabold transition-transform active:scale-[0.97]"
+          >
+            {copied ? "Copied!" : "Share"}
+          </button>
+          <button
+            onClick={handlePlayAgain}
+            className="flex-1 min-h-12 rounded-md border-[1.5px] border-border font-semibold transition-transform active:scale-[0.97]"
+          >
+            Play again
+          </button>
+        </div>
+      </section>
 
-      {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-3 md:gap-4 items-center w-full sm:w-auto px-6 sm:px-0">
-        <button
-          onClick={handleShare}
-          className="w-full sm:w-auto px-8 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
-          style={{
-            background: "var(--color-accent)",
-            color: "#fff",
-          }}
-        >
-          {copied ? "Copied!" : "Share"}
-        </button>
-        <button
-          onClick={handlePlayAgain}
-          className="w-full sm:w-auto px-8 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
-          style={{
-            background: "transparent",
-            color: "var(--color-text-secondary)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          Play Again
-        </button>
-      </div>
-    </div>
+      {/* Wide screens: the share card, as it will look when posted */}
+      <aside className="hidden md:flex flex-col gap-3 w-full max-w-[460px]">
+        <h2 className="text-sm text-text-secondary">Share card</h2>
+        <ShareCardPreview data={card} />
+        <pre className="font-mono text-sm text-text-secondary whitespace-pre-wrap bg-surface rounded-md px-3.5 py-3">
+          {shareText}
+        </pre>
+      </aside>
+    </main>
+  );
+}
+
+function ShareCardPreview({ data }: { data: ShareCardData }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const { par, films, hints, score } = data;
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const draw = () => {
+      const w = canvas.clientWidth;
+      const h = w / CARD_RATIO;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawShareCard(ctx, w, h, { par, films, hints, score });
+    };
+    document.fonts.ready.then(draw);
+    const ro = new ResizeObserver(draw);
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [par, films, hints, score]);
+
+  return (
+    <canvas
+      ref={ref}
+      className="w-full rounded-md border border-divider"
+      style={{ aspectRatio: CARD_RATIO }}
+      role="img"
+      aria-label={`Share card: par ${par}, ${films} film${films === 1 ? "" : "s"}, ${hints} hint${hints === 1 ? "" : "s"}, ${score}`}
+    />
   );
 }

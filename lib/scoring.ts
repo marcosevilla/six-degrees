@@ -45,8 +45,26 @@ export function formatTimecode(ms: number): string {
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
-// Spoiler-free share line in the Wordle / Strands family: no names, one 🎬 per
-// step, 💡 per hint, the result against par, and the link last (like Framed).
+// One square of film stock per film, in the stock rotation (lib/reel-model.ts).
+const STOCK_SQUARES = ["🟦", "🟧", "🟥", "🟩"];
+
+export function stockSquares(films: number): string {
+  return Array.from({ length: films }, (_, i) => STOCK_SQUARES[i % STOCK_SQUARES.length]).join("");
+}
+
+const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+
+// The results headline: "Right on par", "Two over par", "One under par".
+export function scoreHeadline(delta: number, gaveUp: boolean): string {
+  if (gaveUp) return "Gave up";
+  if (delta === 0) return "Right on par";
+  const n = Math.abs(delta);
+  const word = WORDS[n] ?? String(n);
+  return `${word} ${delta > 0 ? "over" : "under"} par`;
+}
+
+// Spoiler-free share line in the Wordle / Strands family: no names, one square
+// of film stock per film, 💡 per hint, the result against par, the link last.
 export function buildShareText({
   par,
   steps,
@@ -64,6 +82,5 @@ export function buildShareText({
   if (endReason === "gaveUp") return `${head}\n🏳️ Gave up\n${url}`;
   const delta = scoreVsPar(steps, hintsUsed, par);
   const result = delta < 0 ? `Under par (${delta})` : getScoreLabel(delta);
-  const hints = hintsUsed > 0 ? ` ${"💡".repeat(hintsUsed)}` : "";
-  return `${head}\n${"🎬".repeat(steps)}${hints} · ${result}\n${url}`;
+  return `${head}\n${stockSquares(steps)}${"💡".repeat(hintsUsed)} ${result}\n${url}`;
 }

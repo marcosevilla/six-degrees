@@ -165,8 +165,7 @@ body {
 .film-label b { display: block; font-weight: 600; font-size: var(--text-sm); line-height: 1.2; }
 .film-label span { font-size: var(--text-2xs); color: var(--color-text-secondary); }
 
-/* Chain card animations */
-/* Rejected pick: Wordle's row shake (600ms, ±1/2/4px). */
+/* Rejected pick: Wordle's row shake (±1/2/4px); duration from lib/motion.ts. */
 @keyframes input-shake {
   10%, 90% { transform: translateX(-1px); }
   20%, 80% { transform: translateX(2px); }
@@ -178,160 +177,35 @@ body {
   animation: input-shake var(--shake-ms, 600ms) ease-in-out;
 }
 
-@keyframes card-flip-in {
-  0% {
-    transform: perspective(400px) rotateY(-90deg);
-    opacity: 0;
-  }
-  100% {
-    transform: perspective(400px) rotateY(0deg);
-    opacity: 1;
-  }
+/* === Results === */
+/* Results slide up; timing from lib/motion.ts. */
+.results-in {
+  animation: results-in var(--results-ms, 300ms) var(--results-ease, ease-out) both;
+}
+@keyframes results-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
 }
 
-@keyframes card-wave {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-  30% {
-    transform: translateY(-10px) scale(1.06);
-  }
-  60% {
-    transform: translateY(-3px) scale(1.02);
-  }
+/* A film in a line summary: a short strip of stock with sprocket edges. */
+.mini-strip {
+  position: relative;
+  width: 12px;
+  height: 40px;
+  border-radius: 1px;
+  background: var(--c);
 }
-
-@keyframes fade-in-up {
-  0% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.mini-strip::before,
+.mini-strip::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: repeating-linear-gradient(to bottom, var(--color-bg) 0 3px, transparent 3px 7px);
 }
-
-@keyframes placeholder-appear {
-  0% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes card-glow {
-  0% {
-    box-shadow: 0 0 0 0 var(--color-accent);
-  }
-  40% {
-    box-shadow: 0 0 16px 4px var(--color-accent);
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
-
-.card-flip-in {
-  animation: card-flip-in 0.4s ease-out both;
-}
-
-.card-glow > .aspect-\[3\/4\] {
-  animation: card-glow 0.8s ease-out 0.2s both;
-}
-
-/* Win bounce: Wordle's keyframe shape, scaled down for tall cards. Duration
-   and delay come from lib/motion.ts via inline styles. */
-@keyframes win-bounce {
-  0%, 20% { transform: translateY(0); }
-  40% { transform: translateY(-16px); }
-  50% { transform: translateY(3px); }
-  60% { transform: translateY(-8px); }
-  80% { transform: translateY(1px); }
-  100% { transform: translateY(0); }
-}
-
-.win-bounce {
-  animation-name: win-bounce;
-  animation-timing-function: ease-out;
-  animation-fill-mode: both;
-}
-
-/* The target, once the picked film contains them: "tap to close the chain". */
-@keyframes target-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent); transform: scale(1); }
-  50% { box-shadow: 0 0 22px 4px color-mix(in srgb, var(--color-accent) 35%, transparent); transform: scale(1.025); }
-}
-
-.target-reachable .aspect-\[3\/4\] {
-  animation-name: target-pulse;
-  animation-duration: var(--pulse-ms, 1200ms);
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  border-color: var(--color-accent) !important;
-}
-
-/* The last connector draws in when the chain closes. */
-@keyframes connector-draw {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-.connector-draw path {
-  stroke-dasharray: 1;
-  animation-name: connector-draw;
-  animation-duration: var(--draw-ms, 450ms);
-  animation-timing-function: ease-out;
-  animation-fill-mode: both;
-}
-
-.card-wave {
-  animation: card-wave 0.5s ease-out both;
-}
-
-.fade-in-up {
-  animation: fade-in-up 0.4s ease-out both;
-}
-
-.placeholder-appear {
-  animation: placeholder-appear 0.3s ease-out both;
-  animation-delay: 0.3s;
-}
-
-/* Gentle physics-like bob for intermediate cards */
-@keyframes card-bob {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes card-bob-alt {
-  0%, 100% {
-    transform: translateY(-4px);
-  }
-  50% {
-    transform: translateY(3px);
-  }
-}
-
-/* String connector sway */
-@keyframes string-sway {
-  0%, 100% {
-    transform: scaleY(1) rotate(0deg);
-  }
-  25% {
-    transform: scaleY(1.1) rotate(1.5deg);
-  }
-  75% {
-    transform: scaleY(0.9) rotate(-1.5deg);
-  }
-}
+.mini-strip::before { left: 1px; }
+.mini-strip::after { right: 1px; }
 
 /* === Reveal Card 3D Flip === */
 
@@ -370,22 +244,7 @@ body {
   }
 }
 
-@keyframes reveal-exit {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-
-.reveal-exit {
-  animation: reveal-exit 500ms ease-in forwards;
-}
-
-/* Hide scrollbar on chain strip */
+/* Hide scrollbars on the stage and hint strip */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

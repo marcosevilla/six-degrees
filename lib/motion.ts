@@ -37,14 +37,3 @@ export function closeBeatMs(): number {
   return REEL_MOTION.clipOnMs + REEL_MOTION.clickToTautMs + REEL_MOTION.tautMs + REEL_MOTION.settleMs;
 }
 
-// Legacy card-chain win timings. Removed when the reels replace the cards.
-export const WIN_MOTION = {
-  targetPulseMs: 1200,
-  connectorDrawMs: 450,
-  bounceMs: 1000,
-  bounceStaggerMs: 100,
-} as const;
-
-export function bounceDelayMs(index: number): number {
-  return WIN_MOTION.connectorDrawMs + index * WIN_MOTION.bounceStaggerMs;
-}

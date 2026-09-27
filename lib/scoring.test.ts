@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildShareText, getChainSteps, scoreVsPar, getScoreLabel, elapsedMs, formatTimecode } from "./scoring";
+import { buildShareText, getChainSteps, scoreVsPar, getScoreLabel, elapsedMs, formatTimecode, scoreHeadline, stockSquares } from "./scoring";
 
 test("steps count the titles in the chain", () => {
   assert.equal(
@@ -39,12 +39,12 @@ test("share text: one 🎬 per step, 💡 per hint, par-relative result, link la
   const url = "https://example.com/play?pair=1-2";
   assert.equal(
     buildShareText({ par: 2, steps: 3, hintsUsed: 1, endReason: "won", url }),
-    `Six Degrees · Par 2\n🎬🎬🎬 💡 · +2\n${url}`,
+    `Six Degrees · Par 2\n🟦🟧🟥💡 +2\n${url}`,
   );
-  assert.equal(buildShareText({ par: 2, steps: 2, hintsUsed: 0, endReason: "won", url }), `Six Degrees · Par 2\n🎬🎬 · Par\n${url}`);
+  assert.equal(buildShareText({ par: 2, steps: 2, hintsUsed: 0, endReason: "won", url }), `Six Degrees · Par 2\n🟦🟧 Par\n${url}`);
   assert.equal(
     buildShareText({ par: 2, steps: 1, hintsUsed: 0, endReason: "won", url }),
-    `Six Degrees · Par 2\n🎬 · Under par (-1)\n${url}`,
+    `Six Degrees · Par 2\n🟦 Under par (-1)\n${url}`,
   );
   assert.equal(
     buildShareText({ par: 1, steps: 0, hintsUsed: 2, endReason: "gaveUp", url }),
@@ -56,4 +56,17 @@ test("formatTimecode pads minutes and seconds", () => {
   assert.equal(formatTimecode(0), "00:00");
   assert.equal(formatTimecode(48_900), "00:48");
   assert.equal(formatTimecode(725_000), "12:05");
+});
+
+test("scoreHeadline reads the result in words", () => {
+  assert.equal(scoreHeadline(0, false), "Right on par");
+  assert.equal(scoreHeadline(2, false), "Two over par");
+  assert.equal(scoreHeadline(-1, false), "One under par");
+  assert.equal(scoreHeadline(12, false), "12 over par");
+  assert.equal(scoreHeadline(3, true), "Gave up");
+});
+
+test("stockSquares follows the film stock rotation", () => {
+  assert.equal(stockSquares(5), "🟦🟧🟥🟩🟦");
+  assert.equal(stockSquares(0), "");
 });

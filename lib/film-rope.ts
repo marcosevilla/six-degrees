@@ -118,6 +118,8 @@ export class Rope {
 // Draw a rope as 35mm stock: colored base, frame lines, rounded sprocket holes
 // punched in the ground color.
 export function drawFilm(ctx: CanvasRenderingContext2D, rope: Rope, color: string, ground: string, scale = 1) {
+  // Hole and frame spacing scale with the strip; at zero they'd never advance.
+  if (!(scale > 0)) return;
   const pts = rope.pts;
   ctx.lineJoin = "round";
   ctx.lineCap = "butt";
