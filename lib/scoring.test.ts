@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildShareText, getChainSteps, scoreVsPar, getScoreLabel, elapsedMs } from "./scoring";
+import { buildShareText, getChainSteps, scoreVsPar, getScoreLabel, elapsedMs, formatTimecode } from "./scoring";
 
 test("steps count the titles in the chain", () => {
   assert.equal(
@@ -50,4 +50,10 @@ test("share text: one 🎬 per step, 💡 per hint, par-relative result, link la
     buildShareText({ par: 1, steps: 0, hintsUsed: 2, endReason: "gaveUp", url }),
     `Six Degrees · Par 1\n🏳️ Gave up\n${url}`,
   );
+});
+
+test("formatTimecode pads minutes and seconds", () => {
+  assert.equal(formatTimecode(0), "00:00");
+  assert.equal(formatTimecode(48_900), "00:48");
+  assert.equal(formatTimecode(725_000), "12:05");
 });

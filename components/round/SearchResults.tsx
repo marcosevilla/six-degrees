@@ -39,20 +39,17 @@ export function SearchResults({
     }
   }, [highlightedIndex]);
 
-  const highlightStyle = { background: "rgba(255, 255, 255, 0.08)" };
-
   return (
     <div
       ref={ref}
       role="listbox"
-      className="absolute z-50 w-full mt-0 overflow-hidden overflow-y-auto bottom-full mb-1 md:bottom-auto md:top-full md:mb-0 max-h-[40vh] md:max-h-64 rounded-t-lg md:rounded-t-none"
-      style={{
-        background: "var(--color-surface)",
-        borderBottom: "1px solid var(--color-border)",
-      }}
+      className="absolute z-50 w-full bottom-full overflow-y-auto max-h-[min(40vh,300px)] bg-surface border-[1.5px] border-border border-b-0 rounded-t-md"
     >
       {results.map((item, index) => {
         const isHighlighted = index === highlightedIndex;
+        const row = `w-full min-h-12 flex items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-hover ${
+          index > 0 ? "border-t border-divider" : ""
+        } ${isHighlighted ? "bg-hover" : ""}`;
 
         if (mode === "media") {
           const media = item as MediaResult;
@@ -64,33 +61,23 @@ export function SearchResults({
               role="option"
               aria-selected={isHighlighted}
               onClick={() => onSelect(media)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.08]"
-              style={isHighlighted ? highlightStyle : undefined}
+              className={row}
             >
               {media.posterPath ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={getPosterUrl(media.posterPath, "w92")}
                   alt=""
-                  className="w-7 h-10 object-cover flex-shrink-0"
+                  className="w-7 h-10 object-cover flex-shrink-0 rounded-[2px] outline outline-1 -outline-offset-1 outline-white/10"
                 />
               ) : (
-                <div
-                  className="w-7 h-10 flex-shrink-0"
-                  style={{ background: "var(--color-border)" }}
-                />
+                <div className="w-7 h-10 flex-shrink-0 rounded-[2px] bg-divider" />
               )}
-              <div className="min-w-0">
-                <div className="text-sm truncate" style={{ color: "var(--color-text)" }}>
-                  {media.title}
-                </div>
-                <div
-                  className="text-xs"
-                  style={{ color: "var(--color-text-secondary)" }}
-                >
-                  {media.mediaType === "tv" ? "TV" : "Film"}
-                  {media.year ? `, ${media.year}` : ""}
-                </div>
-              </div>
+              <span className="flex-1 min-w-0 text-base truncate">{media.title}</span>
+              <span className="font-mono text-xs text-text-secondary shrink-0">
+                {media.mediaType === "tv" ? "TV " : ""}
+                {media.year}
+              </span>
             </button>
           );
         }
@@ -104,24 +91,19 @@ export function SearchResults({
             role="option"
             aria-selected={isHighlighted}
             onClick={() => onSelect(person)}
-            className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.08]"
-            style={isHighlighted ? highlightStyle : undefined}
+            className={row}
           >
             {person.profilePath ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={getProfileUrl(person.profilePath, "w45")}
                 alt=""
-                className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                className="w-7 h-7 rounded-full object-cover flex-shrink-0 outline outline-1 -outline-offset-1 outline-white/10"
               />
             ) : (
-              <div
-                className="w-7 h-7 rounded-full flex-shrink-0"
-                style={{ background: "var(--color-border)" }}
-              />
+              <div className="w-7 h-7 rounded-full flex-shrink-0 bg-divider" />
             )}
-            <div className="text-sm truncate" style={{ color: "var(--color-text)" }}>
-              {person.name}
-            </div>
+            <span className="text-base truncate">{person.name}</span>
           </button>
         );
       })}

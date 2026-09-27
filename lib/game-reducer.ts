@@ -61,6 +61,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             id: action.media.id,
             name: action.media.title,
             mediaType: action.media.mediaType,
+            year: action.media.year,
             posterPath: action.media.posterPath,
           },
         ],
@@ -105,7 +106,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ? {
               id: lastLink.id,
               title: lastLink.name,
-              year: "",
+              year: lastLink.year ?? "",
               posterPath: lastLink.posterPath ?? null,
               mediaType: lastLink.mediaType!,
             }

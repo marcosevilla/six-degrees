@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useGame } from "@/lib/GameContext";
 import { fetchRoute, validateConnection } from "@/lib/tmdb";
 import { routeToLinks } from "@/lib/route-links";
-import { closeBeatMs } from "@/lib/motion";
+import { closeBeatMs, REEL_MOTION } from "@/lib/motion";
 import { ChainLink, MediaResult, PersonResult } from "@/lib/types";
 import { CHAIN_SOFT_LIMIT } from "@/lib/actor-pool";
-import { elapsedMs, formatTime } from "@/lib/scoring";
-import { playCardSound, playWinSound, playRemoveSound } from "@/lib/sounds";
+import { elapsedMs, formatTimecode } from "@/lib/scoring";
+import { playCardSound, playWinSound, playRemoveSound, playErrorSound } from "@/lib/sounds";
 import { SearchInput } from "./SearchInput";
-import { ChainDisplay } from "./ChainDisplay";
+import { ReelStage } from "./ReelStage";
 import { HintLadder } from "./HintLadder";
 
 export function ChainBuilder() {
@@ -51,6 +51,7 @@ export function ChainBuilder() {
   }, [errorCount]);
 
   const reject = (message: string) => {
+    playErrorSound();
     setError(message);
     setErrorCount((n) => n + 1);
   };
@@ -148,15 +149,13 @@ export function ChainBuilder() {
 
   const hintLadder =
     actorPair && lastActor && !closing ? (
-      <div className="w-full md:max-w-[480px]">
-        <HintLadder
-          currentActor={lastActor}
-          start={actorPair.start}
-          target={actorPair.end}
-          onPickFilm={handleSelectMedia}
-          disabled={isValidating}
-        />
-      </div>
+      <HintLadder
+        currentActor={lastActor}
+        start={actorPair.start}
+        target={actorPair.end}
+        onPickFilm={handleSelectMedia}
+        disabled={isValidating}
+      />
     ) : null;
 
   const placeholder =
@@ -164,149 +163,113 @@ export function ChainBuilder() {
       ? `What was ${currentActor?.name} in?`
       : `Who else was in ${selectedMedia?.title}?`;
 
-  // Rendered twice (desktop inline, mobile bottom bar), so each copy gets a ref slot.
-  const searchBar = (slot: number) => (
-    <div ref={(el) => { shakeRefs.current[slot] = el; }}>
-      <SearchInput
-        mode={searchMode}
-        placeholder={placeholder}
-        onSelectMedia={handleSelectMedia}
-        onSelectPerson={handleSelectPerson}
-        disabled={isValidating}
-        excludeActorIds={excludeActorIds}
-      />
+  const undo = () => {
+    if (isValidating) return;
+    playRemoveSound();
+    dispatch({ type: "UNDO_LAST" });
+    setError(null);
+  };
 
-      {isValidating && (
-        <p
-          role="status"
-          className="text-xs uppercase tracking-[0.15em] mt-2"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          Checking...
-        </p>
-      )}
-
-      {error && (
-        <p
-          role="alert"
-          className="text-xs mt-2 max-w-[280px]"
-          style={{ color: "var(--color-error)" }}
-        >
-          {error}
-        </p>
-      )}
-    </div>
-  );
+  const startOver = () => {
+    playRemoveSound();
+    dispatch({ type: "RESET_CHAIN", now: Date.now() });
+    setError(null);
+  };
 
   return (
     // While the chain closes, a tap anywhere skips to results.
-    <div className="flex flex-col w-full flex-1 pb-24 md:pb-0" onClick={closing ? finish : undefined}>
-      {/* Header — difficulty + actor pair + timer */}
-      <div className="text-center pt-6 md:pt-12 pb-3 md:pb-4">
-        {difficulty && (
-          <p
-            className="text-[10px] uppercase tracking-[0.2em] mb-2"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
+    <div
+      className="flex flex-col w-full h-dvh"
+      onClick={closing ? finish : undefined}
+      style={{ "--shake-ms": `${REEL_MOTION.shakeMs}ms` } as React.CSSProperties}
+    >
+      {/* Header: difficulty, par, hints, the clock, then who to connect */}
+      <header className="flex flex-col gap-1.5 px-5 md:px-8 pt-5 md:pt-8 pb-1 w-full md:max-w-[1120px] md:mx-auto">
+        <div className="flex justify-between items-center text-sm text-text-secondary">
+          <span className="capitalize">
             {difficulty}
             {par !== null && ` · Par ${par}`}
-            {state.hintsUsed > 0 && ` · +${state.hintsUsed} hint${state.hintsUsed === 1 ? "" : "s"}`}
-          </p>
-        )}
+            {state.hintsUsed > 0 && ` · ${state.hintsUsed} hint${state.hintsUsed === 1 ? "" : "s"}`}
+          </span>
+          <span className="font-mono text-xs tabular-nums" aria-label="Time">
+            {formatTimecode(elapsed)}
+          </span>
+        </div>
         {actorPair && (
-          <h1
-            className="text-lg md:text-2xl font-bold"
-            style={{ color: "var(--color-text)" }}
-          >
-            {actorPair.start.name}
-            <span style={{ color: "var(--color-text-secondary)" }}> → </span>
-            {actorPair.end.name}
+          <h1 className="text-xl font-extrabold tracking-[-0.01em] text-balance">
+            {actorPair.start.name} to {actorPair.end.name}
           </h1>
         )}
-        <p
-          className="text-sm tabular-nums mt-2"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          {formatTime(elapsed)}
-        </p>
-      </div>
+      </header>
 
-      {/* Spacer above chain */}
-      <div className="flex-[0.3] md:flex-[0.8]" />
+      {/* The line: reels and hanging film */}
+      <div className="relative flex-1 min-h-0 flex">
+        {actorPair && (
+          <ReelStage
+            chain={chain}
+            target={actorPair.end}
+            targetReady={targetReachable}
+            closing={closing}
+            pending={isValidating}
+            shakeCount={errorCount}
+            onCloseChain={() => selectedMedia && closeChain(selectedMedia.id)}
+          />
+        )}
 
-      {/* Horizontal chain strip + search bar (desktop only inline) */}
-      <ChainDisplay
-        chain={chain}
-        currentSearchMode={searchMode}
-        targetActor={actorPair?.end ?? { name: "", id: 0 }}
-        isComplete={closing}
-        targetState={targetReachable ? "reachable" : "idle"}
-        onCloseChain={() => selectedMedia && closeChain(selectedMedia.id)}
-        onUndo={() => {
-          if (isValidating) return;
-          playRemoveSound();
-          dispatch({ type: "UNDO_LAST" });
-          setError(null);
-        }}
-      >
-        {/* Desktop: inline search under placeholder card */}
-        {!closing && (
-          <div className="hidden md:block max-w-[240px] w-full">
-            {searchBar(0)}
+        {/* Undo and Start over sit in the stage's corner */}
+        {chain.length > 1 && !closing && (
+          <div className="absolute top-0 inset-x-0 w-full md:max-w-[1120px] mx-auto px-2 md:px-6 flex justify-end pointer-events-none [&>button]:pointer-events-auto">
+            <button
+              onClick={undo}
+              disabled={isValidating}
+              className="w-11 h-11 grid place-items-center rounded-md text-text-secondary hover:text-text disabled:opacity-50"
+              aria-label="Undo last pick"
+              title="Undo"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 14 4 9l5-5" />
+                <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+              </svg>
+            </button>
+            <button
+              onClick={startOver}
+              disabled={isValidating}
+              className="w-11 h-11 grid place-items-center rounded-md text-text-secondary hover:text-text disabled:opacity-50"
+              aria-label="Start over"
+              title="Start over"
+            >
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M1 1v5h5" />
+                <path d="M3.5 10a6 6 0 1 0 1.2-6.2L1 6" />
+              </svg>
+            </button>
           </div>
         )}
-      </ChainDisplay>
+      </div>
 
-      {/* Desktop: stuck exits under the chain */}
-      {hintLadder && <div className="hidden md:flex justify-center px-8 mt-4">{hintLadder}</div>}
-
-      {showSoftLimit && (
-        <p
-          className="text-xs text-center"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          Long chain — try a different path?
-        </p>
-      )}
-
-      {/* Spacer pushes Start over to bottom */}
-      <div className="flex-[0.3] md:flex-[0.8]" />
-
-      {/* Reset chain */}
-      {chain.length > 1 && !closing && (
-        <button
-          onClick={() => {
-            playRemoveSound();
-            dispatch({ type: "RESET_CHAIN", now: Date.now() });
-            setError(null);
-          }}
-          disabled={isValidating}
-          className="flex items-center gap-1.5 text-xs uppercase tracking-[0.15em] px-4 py-1.5 rounded-full transition-colors self-center mb-20 md:mb-2 disabled:opacity-50"
-          style={{
-            color: "var(--color-text-secondary)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 1v5h5" />
-            <path d="M3.5 10a6 6 0 1 0 1.2-6.2L1 6" />
-          </svg>
-          Start over
-        </button>
-      )}
-
-      {/* Mobile: sticky search bar at bottom */}
+      {/* Search, hints and messages */}
       <div
-        className={`fixed bottom-0 left-0 right-0 z-40 md:hidden ${closing ? "invisible" : ""}`}
-        style={{
-          background: "var(--color-bg)",
-          borderTop: "1px solid var(--color-border)",
-        }}
+        className={`w-full md:max-w-[520px] md:mx-auto px-5 pt-2 pb-[max(env(safe-area-inset-bottom),16px)] md:pb-8 flex flex-col gap-2 ${closing ? "invisible" : ""}`}
       >
-        <div className="px-4 py-3 pb-[env(safe-area-inset-bottom,12px)] flex flex-col gap-2">
-          {hintLadder}
-          {searchBar(1)}
+        {showSoftLimit && (
+          <p className="text-xs text-text-secondary">Long chain. Try a different path?</p>
+        )}
+        {hintLadder}
+        <div ref={(el) => { shakeRefs.current[0] = el; }}>
+          <SearchInput
+            mode={searchMode}
+            placeholder={placeholder}
+            onSelectMedia={handleSelectMedia}
+            onSelectPerson={handleSelectPerson}
+            disabled={isValidating}
+            excludeActorIds={excludeActorIds}
+          />
         </div>
+        {error && (
+          <p role="alert" className="text-sm text-error">
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );

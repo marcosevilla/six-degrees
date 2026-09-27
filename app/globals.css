@@ -64,6 +64,107 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* === Reel Line: reels and hanging film === */
+/* A reel is a 35mm reel: aluminum plate, six cut-outs, the actor at the hub. */
+.reel {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.reel-body { position: relative; width: 100%; height: 100%; }
+.reel svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.reel-plate { fill: var(--color-reel); transition: fill 200ms; }
+.reel-cut { fill: var(--color-bg); }
+.reel-face {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: var(--text-2xs);
+  color: var(--color-text);
+  background: radial-gradient(90% 90% at 40% 30%, var(--color-face-1), var(--color-face-2));
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+.reel-face img { width: 100%; height: 100%; object-fit: cover; }
+.reel-name {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 130px;
+  text-align: center;
+  font-weight: 800;
+  font-size: var(--text-md);
+  line-height: 1.15;
+  text-wrap: balance;
+  background: var(--color-bg);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+.reel-tap {
+  display: block;
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+.reel.waiting .reel-plate { fill: var(--color-reel-dim); }
+.reel.ready { cursor: pointer; }
+.reel.ready .reel-tap,
+.reel.pending .reel-tap { color: var(--color-accent); }
+.reel.ready .reel-body::before,
+.reel.pending .reel-body::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+}
+/* "Tap to connect" breathes; "checking" holds still (a dashed ring). */
+.reel.ready .reel-body::before { animation: reel-ready var(--ready-ms, 1200ms) ease-in-out infinite; }
+.reel.pending .reel-body::before { border-style: dashed; }
+@keyframes reel-ready {
+  0%, 100% { opacity: 0.35; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+/* A new reel arrives as its film clips on. */
+.reel-in .reel-body { animation: reel-in var(--clip-ms, 280ms) ease-out both; }
+@keyframes reel-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+.reel .reel-body.input-shake { animation: input-shake var(--shake-ms, 600ms) ease-in-out; }
+
+.film-label {
+  position: absolute;
+  z-index: 1;
+  transform: translate(-50%, 0);
+  text-align: center;
+  pointer-events: none;
+  width: max-content;
+  max-width: 160px;
+  background: var(--color-bg);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+.film-label b { display: block; font-weight: 600; font-size: var(--text-sm); line-height: 1.2; }
+.film-label span { font-size: var(--text-2xs); color: var(--color-text-secondary); }
+
 /* Chain card animations */
 /* Rejected pick: Wordle's row shake (600ms, ±1/2/4px). */
 @keyframes input-shake {
@@ -74,7 +175,7 @@ body {
 }
 
 .input-shake {
-  animation: input-shake 600ms ease-in-out;
+  animation: input-shake var(--shake-ms, 600ms) ease-in-out;
 }
 
 @keyframes card-flip-in {

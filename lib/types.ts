@@ -58,6 +58,7 @@ export interface ChainLink {
   id: number;
   name: string;
   mediaType?: "movie" | "tv";
+  year?: string;
   profilePath?: string | null;
   posterPath?: string | null;
 }

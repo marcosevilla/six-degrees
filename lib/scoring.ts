@@ -37,6 +37,14 @@ export function formatTime(ms: number): string {
     : `${seconds}s`;
 }
 
+// Timecode for the playing screen and results: 00:48, 12:05.
+export function formatTimecode(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
 // Spoiler-free share line in the Wordle / Strands family: no names, one 🎬 per
 // step, 💡 per hint, the result against par, and the link last (like Framed).
 export function buildShareText({

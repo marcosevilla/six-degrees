@@ -133,24 +133,14 @@ export function SearchInput({
         aria-activedescendant={
           highlightedIndex >= 0 ? `search-result-${highlightedIndex}` : undefined
         }
-        className="w-full py-3 text-base outline-none transition-all placeholder:text-left"
-        style={{
-          background: "transparent",
-          color: "var(--color-text)",
-          borderBottom: "2px solid var(--color-border)",
-        }}
-        onFocusCapture={(e) => {
-          e.currentTarget.style.borderBottomWidth = "3px";
-          e.currentTarget.style.borderBottomColor = "var(--color-accent)";
-          results.length > 0 && setIsOpen(true);
-        }}
-        onBlurCapture={(e) => {
-          e.currentTarget.style.borderBottomWidth = "2px";
-          e.currentTarget.style.borderBottomColor = "var(--color-border)";
-        }}
+        className={`w-full min-h-12 pl-3 pr-10 text-base bg-surface text-text placeholder:text-text-secondary border-[1.5px] border-border outline-none transition-[border-color] duration-150 focus:border-accent disabled:opacity-60 ${
+          isOpen && results.length > 0 ? "rounded-b-md border-t-0" : "rounded-md"
+        }`}
+        onFocus={() => results.length > 0 && setIsOpen(true)}
       />
       {isLoading && (
         <div
+          aria-hidden="true"
           className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-[1.5px] rounded-full animate-spin"
           style={{
             borderColor: "var(--color-border)",

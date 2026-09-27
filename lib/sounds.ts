@@ -141,3 +141,27 @@ export function playWinSound() {
     osc.stop(t + 0.4);
   });
 }
+
+/** Low, short double buzz when a pick is rejected */
+export function playErrorSound() {
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  [0, 0.09].forEach((offset) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = "triangle";
+    const t = now + offset;
+    osc.frequency.setValueAtTime(196, t);
+    osc.frequency.exponentialRampToValueAtTime(147, t + 0.08);
+
+    gain.gain.setValueAtTime(0.13, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+
+    osc.start(t);
+    osc.stop(t + 0.08);
+  });
+}
