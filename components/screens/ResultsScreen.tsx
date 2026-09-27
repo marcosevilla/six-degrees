@@ -60,7 +60,7 @@ export function ResultsScreen() {
         </p>
       )}
       <h1
-        className="text-3xl md:text-4xl font-bold italic -mt-2 font-reveal"
+        className="text-2xl font-extrabold -mt-2"
         style={{ color: "var(--color-text)" }}
       >
         {label}

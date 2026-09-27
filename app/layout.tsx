@@ -1,14 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { GeistSans } from "geist/font/sans";
-import { Playfair_Display } from "next/font/google";
+import { Overpass, IBM_Plex_Mono } from "next/font/google";
 import { Agentation } from "agentation";
 import "./globals.css";
 
-const playfair = Playfair_Display({
+// Overpass: people at 800, films and interface at 400/600.
+const overpass = Overpass({
   subsets: ["latin"],
-  variable: "--font-playfair",
-  style: ["normal", "italic"],
-  weight: ["700"],
+  variable: "--font-overpass",
+  weight: ["400", "600", "800"],
+});
+
+// IBM Plex Mono: years, timecode and counts.
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-plex-mono",
+  weight: ["400", "500"],
 });
 
 export const viewport: Viewport = {
@@ -16,6 +22,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#15171B",
 };
 
 export const metadata: Metadata = {
@@ -29,8 +36,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${playfair.variable}`}>
-      <body className="min-h-dvh font-sans grain-bg">
+    <html lang="en" className={`${overpass.variable} ${plexMono.variable}`}>
+      <body className="min-h-dvh font-sans">
         {children}
         {process.env.NODE_ENV === "development" && <Agentation />}
       </body>

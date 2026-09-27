@@ -88,7 +88,7 @@ export function ChainCard({
               ? "1px solid var(--color-accent)"
               : "1px solid rgba(255, 255, 255, 0.08)",
             boxShadow: isActive
-              ? "0 0 12px 0 rgba(var(--color-accent-rgb, 230, 57, 70), 0.15)"
+              ? "0 0 12px 0 color-mix(in srgb, var(--color-accent) 15%, transparent)"
               : "inset 0 0 0 0.5px rgba(255, 255, 255, 0.04)",
             transition: "all 0.5s ease",
           }}

@@ -42,3 +42,4 @@ next-env.d.ts
 
 # graph build cache
 /.cache/
+.playwright-mcp/

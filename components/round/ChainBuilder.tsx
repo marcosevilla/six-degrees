@@ -90,7 +90,7 @@ export function ChainBuilder() {
     const route = fetchRoute(actorPair.start.id, actorPair.end.id)
       .then((r) => (r ? routeToLinks(r) : null))
       .catch(() => null);
-    const timer = setTimeout(finish, closeBeatMs(chain.length + 1));
+    const timer = setTimeout(finish, closeBeatMs());
     finishRef.current = { timer, route, done: false };
   };
   const showSoftLimit = chain.length >= CHAIN_SOFT_LIMIT;

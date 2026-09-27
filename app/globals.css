@@ -1,25 +1,60 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-playfair), Georgia, serif;
-}
+@theme static {
+  --font-sans: var(--font-overpass), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 
-:root {
-  /* Core palette — A24-inspired dark */
-  --color-bg: #0A0A0A;
-  --color-surface: #141414;
-  --color-border: #222222;
-  --color-text: #FAFAFA;
-  --color-text-secondary: #666666;
+  /* Reel Line (dark). Approved 2026-09-27; see NEXT.md. */
+  --color-bg: #15171B; /* ground */
+  --color-surface: #1F2227;
+  --color-text: #EDEEEA;
+  --color-text-secondary: #9EA3AB;
+  --color-border: #3A3E45; /* input and button outlines */
+  --color-divider: #2E3137; /* rows inside a surface */
+  --color-hover: #262A30;
+  --color-reel: #C9CCD2; /* reel aluminum */
+  --color-reel-dim: #5C616A; /* a reel you can't reach yet */
+  --color-face-1: #4A4F57; /* hub gradient behind a missing photo */
+  --color-face-2: #2A2D33;
+  --color-cta-bg: #EDEEEA;
+  --color-cta-fg: #15171B;
 
-  /* Accent — overridden dynamically by Game.tsx based on difficulty */
-  --color-accent: #E63946;
-  --color-accent-rgb: 230, 57, 70;
+  /* Film stock: one color per film, in this order. */
+  --color-stock-blue: #5B8DEF;
+  --color-stock-amber: #E0A33A;
+  --color-stock-red: #F06A5F;
+  --color-stock-green: #3FB57A;
 
-  /* Functional */
+  /* The one highlight: "tap to connect", focus, pending. */
+  --color-accent: #E0A33A;
+
   --color-error: #FF6B6B;
-  --color-success: #4ade80;
+  --color-success: #3FB57A;
+
+  /* Type scale (px): 11 · 12 · 13 · 14 · 16 · 20 · 22 · 36 · 48. Inputs stay
+     at 16 so iOS never zooms on focus. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.3;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.4;
+  --text-md: 0.875rem;
+  --text-md--line-height: 1.2;
+  --text-base: 1rem;
+  --text-base--line-height: 1.45;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.2;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.1;
+  --text-2xl: 2.25rem;
+  --text-2xl--line-height: 1;
+  --text-3xl: 3rem;
+  --text-3xl--line-height: 1;
+
+  /* Radius scale: labels, then inputs/buttons/panels. Reels are circles. */
+  --radius-sm: 4px;
+  --radius-md: 10px;
 }
 
 body {
@@ -27,35 +62,6 @@ body {
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* Film grain texture overlay */
-.grain-bg {
-  position: relative;
-  isolation: isolate;
-}
-
-.grain-bg::before {
-  content: "";
-  position: fixed;
-  inset: -50%;
-  width: 200%;
-  height: 200%;
-  z-index: 99;
-  pointer-events: none;
-  background: repeating-conic-gradient(
-    rgba(255, 255, 255, 0.008) 0%,
-    transparent 0.5%,
-    transparent 1%,
-    rgba(255, 255, 255, 0.005) 1.5%,
-    transparent 2%
-  );
-  mix-blend-mode: overlay;
-}
-
-/* Serif utility for reveal moments */
-.font-reveal {
-  font-family: var(--font-serif);
 }
 
 /* Chain card animations */
@@ -155,8 +161,8 @@ body {
 
 /* The target, once the picked film contains them: "tap to close the chain". */
 @keyframes target-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--color-accent-rgb), 0.55); transform: scale(1); }
-  50% { box-shadow: 0 0 22px 4px rgba(var(--color-accent-rgb), 0.35); transform: scale(1.025); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent); transform: scale(1); }
+  50% { box-shadow: 0 0 22px 4px color-mix(in srgb, var(--color-accent) 35%, transparent); transform: scale(1.025); }
 }
 
 .target-reachable .aspect-\[3\/4\] {
