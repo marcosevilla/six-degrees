@@ -70,6 +70,7 @@ export function SearchInput({
 
   const handleSelect = useCallback(
     (item: MediaResult | PersonResult) => {
+      if (disabled) return; // a pick is still being checked
       if (mode === "media") {
         onSelectMedia(item as MediaResult);
       } else {
@@ -80,7 +81,7 @@ export function SearchInput({
       setIsOpen(false);
       setHighlightedIndex(-1);
     },
-    [mode, onSelectMedia, onSelectPerson],
+    [mode, onSelectMedia, onSelectPerson, disabled],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -122,7 +123,10 @@ export function SearchInput({
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        disabled={disabled}
+        // Read-only, not disabled, while a pick is checked: disabling would drop
+        // focus (and close the phone keyboard) after every pick.
+        readOnly={disabled}
+        aria-busy={disabled || undefined}
         autoComplete="off"
         autoCorrect="off"
         spellCheck="false"
@@ -133,7 +137,7 @@ export function SearchInput({
         aria-activedescendant={
           highlightedIndex >= 0 ? `search-result-${highlightedIndex}` : undefined
         }
-        className={`w-full min-h-12 pl-3 pr-10 text-base bg-surface text-text placeholder:text-text-secondary border-[1.5px] border-border outline-none transition-[border-color] duration-150 focus:border-accent disabled:opacity-60 ${
+        className={`w-full min-h-12 pl-3 pr-10 text-base bg-surface text-text placeholder:text-text-secondary border-[1.5px] border-border outline-none transition-[border-color] duration-150 focus:border-accent read-only:opacity-60 ${
           isOpen && results.length > 0 ? "rounded-b-md border-t-0" : "rounded-md"
         }`}
         onFocus={() => results.length > 0 && setIsOpen(true)}

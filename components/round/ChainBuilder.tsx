@@ -21,6 +21,8 @@ export function ChainBuilder() {
   // Bumped on every rejected pick so the shake replays even for the same message.
   const [errorCount, setErrorCount] = useState(0);
   const [isValidating, setIsValidating] = useState(false);
+  // Read out by screen readers: what a pick did and what to do next.
+  const [announcement, setAnnouncement] = useState("");
   const [now, setNow] = useState(() => Date.now());
   // The picked film whose cast includes the target (checked alongside the pick).
   const [reachableMediaId, setReachableMediaId] = useState<number | null>(null);
@@ -49,6 +51,13 @@ export function ChainBuilder() {
       el.classList.add("input-shake");
     }
   }, [errorCount]);
+
+  // Keyboard and mouse players start typing straight away. Phones don't:
+  // the keyboard would cover the line.
+  const searchRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (window.matchMedia("(pointer: fine)").matches) searchRef.current?.querySelector("input")?.focus();
+  }, []);
 
   const reject = (message: string) => {
     playErrorSound();
@@ -87,6 +96,7 @@ export function ChainBuilder() {
     if (!actorPair || closing || finishRef.current || selectedMedia?.id !== mediaId) return;
     dispatch({ type: "CLOSE_CHAIN", now: Date.now(), mediaId });
     playWinSound();
+    setAnnouncement("Chain closed.");
     // The best route for results loads during the beat (graph-only, ~ms).
     const route = fetchRoute(actorPair.start.id, actorPair.end.id)
       .then((r) => (r ? routeToLinks(r) : null))
@@ -112,6 +122,11 @@ export function ChainBuilder() {
         return;
       }
       playCardSound();
+      setAnnouncement(
+        reachesTarget
+          ? `${media.title} added. ${actorPair.end.name} is in it: pick them to close the chain.`
+          : `${media.title} added. Who else was in it?`,
+      );
       setReachableMediaId(reachesTarget ? media.id : null);
       dispatch({ type: "SELECT_MEDIA", media, fromActorId: currentActor.id });
     } catch {
@@ -138,6 +153,7 @@ export function ChainBuilder() {
         return;
       }
       playCardSound();
+      setAnnouncement(`${person.name} added. What was ${person.name} in?`);
       dispatch({ type: "SELECT_PERSON", person, mediaId: selectedMedia.id });
     } catch {
       reject("Connection failed — check your internet and try again");
@@ -167,12 +183,14 @@ export function ChainBuilder() {
     if (isValidating) return;
     playRemoveSound();
     dispatch({ type: "UNDO_LAST" });
+    setAnnouncement("Removed the last pick.");
     setError(null);
   };
 
   const startOver = () => {
     playRemoveSound();
     dispatch({ type: "RESET_CHAIN", now: Date.now() });
+    setAnnouncement("Chain cleared. The clock restarted.");
     setError(null);
   };
 
@@ -255,7 +273,12 @@ export function ChainBuilder() {
           <p className="text-xs text-text-secondary">Long chain. Try a different path?</p>
         )}
         {hintLadder}
-        <div ref={(el) => { shakeRefs.current[0] = el; }}>
+        <div
+          ref={(el) => {
+            shakeRefs.current[0] = el;
+            searchRef.current = el;
+          }}
+        >
           <SearchInput
             mode={searchMode}
             placeholder={placeholder}
@@ -270,6 +293,9 @@ export function ChainBuilder() {
             {error}
           </p>
         )}
+        <p aria-live="polite" className="sr-only-live">
+          {isValidating ? "Checking…" : announcement}
+        </p>
       </div>
     </div>
   );

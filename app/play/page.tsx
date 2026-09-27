@@ -45,13 +45,10 @@ function PlayContent() {
       <div
         className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center"
       >
-        <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
-          {error}
-        </p>
+        <p className="text-base text-text-secondary">{error}</p>
         <Link
           href="/"
-          className="px-6 py-3 text-sm uppercase tracking-[0.15em] font-semibold transition-all active:scale-95"
-          style={{ background: "var(--color-accent)", color: "#fff" }}
+          className="min-h-12 px-6 grid place-items-center rounded-md bg-cta-bg text-cta-fg font-extrabold transition-transform active:scale-[0.97]"
         >
           Play a new puzzle
         </Link>
@@ -62,11 +59,8 @@ function PlayContent() {
   if (!puzzle) {
     return (
       <div className="min-h-dvh flex items-center justify-center">
-        <p
-          className="text-xs uppercase tracking-[0.2em] animate-pulse"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          Loading challenge...
+        <p className="text-sm text-text-secondary" role="status">
+          Loading the challenge…
         </p>
       </div>
     );
@@ -80,11 +74,8 @@ export default function PlayPage() {
     <Suspense
       fallback={
         <div className="min-h-dvh flex items-center justify-center">
-          <p
-            className="text-xs uppercase tracking-[0.2em] animate-pulse"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
-            Loading...
+          <p className="text-sm text-text-secondary" role="status">
+            Loading…
           </p>
         </div>
       }

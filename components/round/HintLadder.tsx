@@ -89,16 +89,13 @@ export function HintLadder({ currentActor, start, target, onPickFilm, disabled =
               className="flex-shrink-0 flex flex-col items-center gap-1 w-14 md:w-16 transition-transform active:scale-95 disabled:opacity-50"
               title={`${film.title}${film.year ? ` (${film.year})` : ""}`}
             >
-              <div
-                className="w-full aspect-[2/3] overflow-hidden"
-                style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)" }}
-              >
+              <div className="w-full aspect-[2/3] overflow-hidden rounded-[2px] bg-surface outline outline-1 -outline-offset-1 outline-white/10">
                 {film.posterPath && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={getPosterUrl(film.posterPath, "w154")} alt="" className="w-full h-full object-cover" />
                 )}
               </div>
-              <span className="text-[9px] leading-tight text-center line-clamp-2" style={{ color: "var(--color-text-secondary)" }}>
+              <span className="text-2xs text-center line-clamp-2 text-text-secondary">
                 {film.title}
               </span>
             </button>
@@ -107,38 +104,29 @@ export function HintLadder({ currentActor, start, target, onPickFilm, disabled =
       )}
 
       {linkShown && linkTitle && linkActor && (
-        <p className="text-xs" style={{ color: "var(--color-text)" }}>
-          <span style={{ color: "var(--color-text-secondary)" }}>Try </span>
-          <span className="italic">{linkTitle.name}</span>
-          <span style={{ color: "var(--color-text-secondary)" }}> → </span>
-          {linkActor.name}
+        <p className="text-sm">
+          <span className="text-text-secondary">Try </span>
+          <span className="font-semibold">{linkTitle.name}</span>
+          <span className="text-text-secondary"> to </span>
+          <span className="font-extrabold">{linkActor.name}</span>
         </p>
       )}
 
       {notice && (
-        <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
-          {notice}
-        </p>
+        <p className="text-sm text-text-secondary">{notice}</p>
       )}
 
       {confirming ? (
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-xs" style={{ color: "var(--color-text)" }}>
-            Give up and see a best route?
-          </span>
+          <span className="text-sm">Give up and see the express?</span>
           <button
             onClick={giveUp}
             disabled={loading}
-            className="text-xs uppercase tracking-[0.15em] px-3 min-h-[36px] rounded-full disabled:opacity-50"
-            style={{ background: "var(--color-accent)", color: "#fff" }}
+            className="text-sm font-extrabold px-4 min-h-11 rounded-md bg-cta-bg text-cta-fg disabled:opacity-50"
           >
             {loading ? "…" : "Show route"}
           </button>
-          <button
-            onClick={() => setConfirming(false)}
-            className="text-xs uppercase tracking-[0.15em] px-3 min-h-[36px]"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
+          <button onClick={() => setConfirming(false)} className="text-sm px-2 min-h-11 text-text-secondary hover:text-text">
             Keep playing
           </button>
         </div>
@@ -148,19 +136,17 @@ export function HintLadder({ currentActor, start, target, onPickFilm, disabled =
             <button
               onClick={takeHint}
               disabled={loading || disabled}
-              className="flex items-center gap-1.5 text-xs uppercase tracking-[0.1em] px-3 min-h-[36px] rounded-full whitespace-nowrap transition-colors disabled:opacity-50"
-              style={{ color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+              className="flex items-center gap-1.5 text-sm px-3 min-h-11 rounded-md border-[1.5px] border-border whitespace-nowrap transition-colors hover:bg-surface disabled:opacity-50"
             >
               <LightbulbIcon />
-              {loading ? "…" : rung === "films" ? "Hint · top films" : "Hint · next link"}
-              <span style={{ color: "var(--color-text-secondary)" }}>+1</span>
+              {loading ? "…" : rung === "films" ? "Hint: top films" : "Hint: next link"}
+              <span className="font-mono text-xs text-text-secondary">+1</span>
             </button>
           )}
           <button
             onClick={() => setConfirming(true)}
             disabled={disabled}
-            className="text-xs uppercase tracking-[0.1em] px-2 min-h-[36px] whitespace-nowrap transition-colors disabled:opacity-50"
-            style={{ color: "var(--color-text-secondary)" }}
+            className="text-sm px-2 min-h-11 whitespace-nowrap text-text-secondary transition-colors hover:text-text disabled:opacity-50"
           >
             Show me a route
           </button>

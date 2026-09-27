@@ -20,6 +20,9 @@ export function ResultsScreen() {
   const { chain, actorPair, difficulty, hintsUsed } = state;
   const par = state.par ?? 0;
   const [copied, setCopied] = useState(false);
+  // Focus lands on the result, so screen readers read it and Tab goes to Share.
+  const headlineRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => headlineRef.current?.focus(), []);
 
   const steps = getChainSteps(chain);
   const elapsed = elapsedMs(state, state.endTime ?? 0);
@@ -94,7 +97,9 @@ export function ResultsScreen() {
             </span>
           </div>
           <div className="flex flex-col gap-1 min-w-0">
-            <h1 className="text-lg font-extrabold">{scoreHeadline(delta, gaveUp)}</h1>
+            <h1 ref={headlineRef} tabIndex={-1} className="text-lg font-extrabold outline-none">
+              {scoreHeadline(delta, gaveUp)}
+            </h1>
             <p className="text-sm text-text-secondary text-pretty">{summary}</p>
           </div>
         </div>
@@ -109,7 +114,7 @@ export function ResultsScreen() {
             onClick={handleShare}
             className="flex-1 min-h-12 rounded-md bg-cta-bg text-cta-fg font-extrabold transition-transform active:scale-[0.97]"
           >
-            {copied ? "Copied!" : "Share"}
+            <span aria-live="polite">{copied ? "Copied!" : "Share"}</span>
           </button>
           <button
             onClick={handlePlayAgain}

@@ -57,6 +57,39 @@
   --radius-md: 10px;
 }
 
+/* Keyboard focus: one amber ring everywhere; reels get a round one. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.reel:focus-visible {
+  outline-offset: 6px;
+  border-radius: 50%;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  color: var(--color-text);
+}
+
+/* Taps on controls shouldn't select their labels or flash. */
+button,
+[role="button"] {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.sr-only-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);

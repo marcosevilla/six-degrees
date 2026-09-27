@@ -28,16 +28,35 @@ function GameContent({ initialPuzzle }: GameContentProps) {
     }
   }, [initialPuzzle, dispatch]);
 
-  switch (state.phase) {
-    case "home":
-      return <HomeScreen />;
-    case "revealing":
-      return <RevealScreen presetPuzzle={preset} onStarted={clearPreset} />;
-    case "playing":
-      return <PlayingScreen />;
-    case "results":
-      return <ResultsScreen />;
-  }
+  const screen = (() => {
+    switch (state.phase) {
+      case "home":
+        return <HomeScreen />;
+      case "revealing":
+        return <RevealScreen presetPuzzle={preset} onStarted={clearPreset} />;
+      case "playing":
+        return <PlayingScreen />;
+      case "results":
+        return <ResultsScreen />;
+    }
+  })();
+
+  // Phase changes, read out for screen readers (results focuses its headline).
+  const phaseMessage =
+    state.phase === "revealing"
+      ? "Dealing a pair."
+      : state.phase === "playing" && state.actorPair
+        ? `Connect ${state.actorPair.start.name} to ${state.actorPair.end.name}. Par ${state.par}.`
+        : "";
+
+  return (
+    <>
+      {screen}
+      <p aria-live="polite" className="sr-only-live">
+        {phaseMessage}
+      </p>
+    </>
+  );
 }
 
 interface GameProps {
