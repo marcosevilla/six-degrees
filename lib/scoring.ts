@@ -46,7 +46,7 @@ export function formatTimecode(ms: number): string {
 }
 
 // One square of film stock per film, in the stock rotation (lib/reel-model.ts).
-const STOCK_SQUARES = ["🟦", "🟧", "🟥", "🟩"];
+const STOCK_SQUARES = ["🟦", "🟥", "🟩", "🟧"];
 
 export function stockSquares(films: number): string {
   return Array.from({ length: films }, (_, i) => STOCK_SQUARES[i % STOCK_SQUARES.length]).join("");

@@ -5,7 +5,7 @@ import type { ChainLink, PoolActor } from "@/lib/types";
 import { REEL_MOTION as M } from "@/lib/motion";
 import { FilmStage } from "./film-stage";
 import { ReelFace, ReelPlate } from "./Reel";
-import { buildModel, STOCKS } from "@/lib/reel-model";
+import { buildModel, STOCKS, type StationModel } from "@/lib/reel-model";
 
 interface ReelStageProps {
   chain: ChainLink[];
@@ -28,6 +28,9 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
   const colorsRef = useRef<string[]>([]);
   const mounted = useRef(false);
   const [coarse, setCoarse] = useState(false);
+  // Reels taken off the line (undo) stay a moment to play their exit.
+  const prevStations = useRef<StationModel[]>([]);
+  const [leaving, setLeaving] = useState<(StationModel & { x: number; y: number })[]>([]);
 
   const { stations, films } = useMemo(() => buildModel(chain, target), [chain, target]);
   const current = [...stations].reverse().find((s) => s.role !== "target")!;
@@ -53,6 +56,18 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const gone = prevStations.current
+      .filter((p) => !stations.some((s) => s.key === p.key))
+      .flatMap((p) => {
+        const pt = stage.stationPoint(p.key);
+        return pt ? [{ ...p, ...pt }] : [];
+      });
+    prevStations.current = stations;
+    if (gone.length && !reduceMotion) {
+      setLeaving((l) => [...l, ...gone]);
+      setTimeout(() => setLeaving((l) => l.filter((g) => !gone.includes(g))), M.clipOnMs);
+    }
     stage.setStations(stations.map((s) => s.key));
     const wanted = new Set(films.map((f) => f.key));
     for (const key of stage.keys()) if (!wanted.has(key)) stage.remove(key);
@@ -131,6 +146,7 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
 
         {stations.map((s) => {
           const isTarget = s.role === "target";
+          const bookend = s.role !== "actor" ? "bookend" : "";
           const state = isTarget
             ? closing
               ? "closed"
@@ -163,7 +179,7 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
               ref={targetRef}
               type="button"
               data-station={s.key}
-              className={`reel reel-in ${state}`}
+              className={`reel reel-in ${bookend} ${state}`}
               disabled={state !== "ready"}
               onClick={onCloseChain}
               aria-label={state === "ready" && openFilm ? `Connect ${s.name} through ${openFilm}` : s.name}
@@ -171,11 +187,26 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
               {body}
             </button>
           ) : (
-            <div key={s.key} data-station={s.key} className={`reel reel-in ${state}`}>
+            <div key={s.key} data-station={s.key} className={`reel reel-in ${bookend} ${state}`}>
               {body}
             </div>
           );
         })}
+
+        {leaving.map((s) => (
+          <div
+            key={`out-${s.key}`}
+            className={`reel reel-out ${s.role !== "actor" ? "bookend" : ""}`}
+            style={{ left: s.x, top: s.y }}
+            aria-hidden="true"
+          >
+            <div className="reel-body">
+              <ReelPlate />
+              <ReelFace name={s.name} profilePath={s.profilePath} />
+              <span className="reel-name">{s.name}</span>
+            </div>
+          </div>
+        ))}
 
         {films.map((f) => (
           <div key={f.key} data-film-label={f.key} className="film-label">

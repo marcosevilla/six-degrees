@@ -9,17 +9,18 @@ export interface StageLayout {
 // Room kept under the lowest reel: its name, plus a picked film hanging from it.
 const MOBILE_TOP = 52;
 const MOBILE_BOTTOM = 150;
-const MOBILE_GAP = { min: 140, max: 240 };
+const MOBILE_GAP_MIN = 140;
 const DESK_MARGIN = 96;
 const DESK_SPACING = { min: 180, max: 480 };
 
 // Where each reel's hub sits, first to last (the target is last).
-// Phones zigzag down the screen so the gap between the two actors survives;
+// Phones zigzag down the screen and stretch the gap to fill it: the distance
+// between the two actors is the game, and each film visibly closes it;
 // wider screens run left to right. Either grows past the viewport and scrolls.
 export function layoutStations(n: number, W: number, H: number, mobile: boolean): StageLayout {
   if (mobile) {
     const avail = H - MOBILE_TOP - MOBILE_BOTTOM;
-    const gap = n > 1 ? Math.min(MOBILE_GAP.max, Math.max(MOBILE_GAP.min, avail / (n - 1))) : 0;
+    const gap = n > 1 ? Math.max(MOBILE_GAP_MIN, avail / (n - 1)) : 0;
     const points = Array.from({ length: n }, (_, i) => ({
       x: W * (i % 2 === 0 ? 0.27 : 0.73),
       y: MOBILE_TOP + i * gap,

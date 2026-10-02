@@ -1,7 +1,9 @@
 import type { ChainLink, PoolActor } from "./types";
 
-// Film stock colors (CSS variables), one per film in this order.
-export const STOCKS = ["--color-stock-blue", "--color-stock-amber", "--color-stock-red", "--color-stock-green"];
+// Film stock colors (CSS variables), one per film in this order. Amber comes
+// last: it is also the "tap to connect" highlight, so a short line never has an
+// amber strip that reads as already linked to a ready target.
+export const STOCKS = ["--color-stock-blue", "--color-stock-red", "--color-stock-green", "--color-stock-amber"];
 
 export interface StationModel {
   key: string;

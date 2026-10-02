@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useGame } from "@/lib/GameContext";
 import { fetchFilmography, fetchRoute } from "@/lib/tmdb";
 import { routeToLinks } from "@/lib/route-links";
-import { getPosterUrl } from "@/lib/actor-pool";
 import type { ChainLink, MediaResult, PoolActor } from "@/lib/types";
 
 interface HintLadderProps {
@@ -17,7 +16,7 @@ interface HintLadderProps {
 }
 
 // Stuck exits, Strands-style: each rung reveals more than the last and costs +1.
-//   1. the current actor's best-known films (tap one to play it)
+//   1. the current actor's best-known films, one scrolling row of titles (tap one to play it)
 //   2. the next link on a best route from here
 // "Show me a route" gives up and shows a best route on results.
 export function HintLadder({ currentActor, start, target, onPickFilm, disabled = false }: HintLadderProps) {
@@ -86,18 +85,10 @@ export function HintLadder({ currentActor, start, target, onPickFilm, disabled =
               role="listitem"
               onClick={() => onPickFilm(film)}
               disabled={disabled}
-              className="flex-shrink-0 flex flex-col items-center gap-1 w-14 md:w-16 transition-transform active:scale-95 disabled:opacity-50"
-              title={`${film.title}${film.year ? ` (${film.year})` : ""}`}
+              className="flex-shrink-0 flex items-center gap-1.5 text-sm px-3 min-h-11 rounded-md border-[1.5px] border-border whitespace-nowrap transition-colors hover:bg-surface active:scale-95 disabled:opacity-50"
             >
-              <div className="w-full aspect-[2/3] overflow-hidden rounded-[2px] bg-surface outline outline-1 -outline-offset-1 outline-white/10">
-                {film.posterPath && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={getPosterUrl(film.posterPath, "w154")} alt="" className="w-full h-full object-cover" />
-                )}
-              </div>
-              <span className="text-2xs text-center line-clamp-2 text-text-secondary">
-                {film.title}
-              </span>
+              <span className="font-semibold">{film.title}</span>
+              {film.year && <span className="font-mono text-xs text-text-secondary">{film.year}</span>}
             </button>
           ))}
         </div>

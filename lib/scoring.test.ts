@@ -39,9 +39,9 @@ test("share text: one 🎬 per step, 💡 per hint, par-relative result, link la
   const url = "https://example.com/play?pair=1-2";
   assert.equal(
     buildShareText({ par: 2, steps: 3, hintsUsed: 1, endReason: "won", url }),
-    `Six Degrees · Par 2\n🟦🟧🟥💡 +2\n${url}`,
+    `Six Degrees · Par 2\n🟦🟥🟩💡 +2\n${url}`,
   );
-  assert.equal(buildShareText({ par: 2, steps: 2, hintsUsed: 0, endReason: "won", url }), `Six Degrees · Par 2\n🟦🟧 Par\n${url}`);
+  assert.equal(buildShareText({ par: 2, steps: 2, hintsUsed: 0, endReason: "won", url }), `Six Degrees · Par 2\n🟦🟥 Par\n${url}`);
   assert.equal(
     buildShareText({ par: 2, steps: 1, hintsUsed: 0, endReason: "won", url }),
     `Six Degrees · Par 2\n🟦 Under par (-1)\n${url}`,
@@ -67,6 +67,6 @@ test("scoreHeadline reads the result in words", () => {
 });
 
 test("stockSquares follows the film stock rotation", () => {
-  assert.equal(stockSquares(5), "🟦🟧🟥🟩🟦");
+  assert.equal(stockSquares(5), "🟦🟥🟩🟧🟦");
   assert.equal(stockSquares(0), "");
 });

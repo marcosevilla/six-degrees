@@ -204,8 +204,8 @@ export function ChainBuilder() {
       {/* Header: difficulty, par, hints, the clock, then who to connect */}
       <header className="flex flex-col gap-1.5 px-5 md:px-8 pt-5 md:pt-8 pb-1 w-full md:max-w-[1120px] md:mx-auto">
         <div className="flex justify-between items-center text-sm text-text-secondary">
-          <span className="capitalize">
-            {difficulty}
+          <span>
+            <span className="capitalize">{difficulty}</span>
             {par !== null && ` · Par ${par}`}
             {state.hintsUsed > 0 && ` · ${state.hintsUsed} hint${state.hintsUsed === 1 ? "" : "s"}`}
           </span>
