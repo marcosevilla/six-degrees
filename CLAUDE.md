@@ -164,7 +164,7 @@ Every reducer case guards its phase and returns the same state object for action
 - **Fair puzzles:** a dealt pair's best route must use only titles with ≥ `FAIR_MIN_VOTES` (1000) TMDb votes, so par never hinges on an obscure TV special. Keeps ~70% of par-1 and 92% of par-2 pairs.
 - **No unverified pairs anywhere:** `/api/puzzle` either returns a solved pair or an error (Reveal shows Retry; bad share links show a dead-end screen).
 - **Score** = steps (titles) + hints − par. Labels: "Under par!" / "Par" / "+N"; give-up shows "Gave up". Time (minus paused validation time) is a small tiebreaker line.
-- **Share text** (spoiler-free): `Six Degrees · Par 2` / `🟦🟧🟥💡 +2` / link: one square of film stock per film. Share sheet on phones (with the PNG card when it takes files), clipboard elsewhere.
+- **Share text** (spoiler-free): `Six Degrees · Par 2` / `🟦🟥🟩💡 +2` / link: one square of film stock per film. Share sheet on phones (with the PNG card when it takes files), clipboard elsewhere.
 
 ## Design Tokens (Reel Line, dark — approved 2026-09-27)
 All tokens live in `@theme static` in `app/globals.css`, so they work as CSS variables (`var(--color-bg)`) and as Tailwind utilities (`bg-surface`, `text-text-secondary`, `border-border`, `rounded-md`, `text-2xs`).
@@ -182,7 +182,7 @@ All tokens live in `@theme static` in `app/globals.css`, so they work as CSS var
 | `--color-reel` / `--color-reel-dim` | `#C9CCD2` / `#5C616A` | Reel aluminum / a reel you can't reach yet |
 | `--color-face-1` → `--color-face-2` | `#4A4F57` → `#2A2D33` | Hub gradient behind initials |
 | `--color-cta-bg` / `--color-cta-fg` | `#EDEEEA` / `#15171B` | Primary buttons (light on dark) |
-| `--color-stock-blue/amber/red/green` | `#5B8DEF` `#E0A33A` `#F06A5F` `#3FB57A` | Film stock, one per film in this order (`lib/reel-model.ts` STOCKS) |
+| `--color-stock-blue/red/green/amber` | `#5B8DEF` `#F06A5F` `#3FB57A` `#E0A33A` | Film stock, one per film in this order (amber last since 2026-10-02) (`lib/reel-model.ts` STOCKS) |
 | `--color-accent` | `#E0A33A` | The one highlight: tap-to-connect ring, pending ring, focus ring, selected radio |
 | `--color-error` | `#FF6B6B` | Error text |
 
@@ -197,17 +197,17 @@ Overpass everywhere, IBM Plex Mono for years, timecode and counts. Scale (px): `
 ## Component Specs
 
 ### The line (`ReelStage` + `film-stage.ts`)
-- **Reel**: 64px, `ReelPlate` (plate r31, six cut-outs r5.4 at r21) + 30px face at the hub + name plate below (800 14px, max 130px, balanced wrap).
-- **States**: target `waiting` (dim plate) → `ready` (amber ring breathing at `readyPulseMs`, "Tap/Click to connect") → `closed`. Current actor `pending` (static dashed amber ring, "Checking…").
+- **Reel**: 64px (start + target "bookend" reels 88px with a 42px face, since 2026-10-02), `ReelPlate` (plate r31, six cut-outs r5.4 at r21) + 30px face at the hub + name plate below (800 14px, max 130px, balanced wrap).
+- **States**: target `waiting` (dim plate) → `ready` (amber ring breathing at `readyPulseMs`, "Tap/Click to connect") → `closed`. Current actor `pending` (dashed amber ring, the reel turns once per `pendingTurnMs` 2000ms, "Checking…").
 - **Film**: verlet rope, 18 points, 16px stock with sprocket holes + frame lines. Dangling film = 120px, labeled at its free end; hung film labeled under its middle.
-- **Layout** (`lib/reel-layout.ts`): phones zigzag (x 27% / 73%, gap 140–240px); ≥768 runs left to right (spacing 180–480px, centered). Either grows past the viewport and the stage scrolls to keep the current actor in view.
+- **Layout** (`lib/reel-layout.ts`): phones zigzag (x 27% / 73%, gap ≥140px, stretched to fill the stage); ≥768 runs left to right (spacing 180–480px, centered). Either grows past the viewport and the stage scrolls to keep the current actor in view.
 - **No idle motion**: the sim stops after 40 still frames. Reduced motion settles everything instantly.
 - Undo + Start over: 44px icon buttons in the stage's top-right corner.
 
 ### Motion (`lib/motion.ts`)
 - Physics: gravity 2200 px/s², damping 0.985, slack 1.10 rest → 1.01 close → 1.078 relax.
 - Close: clip-on 280ms (40px lift) → reel click 320ms, `cubic-bezier(.2,.8,.2,1.25)` → +420ms taut 380ms → settle 900ms → results (1980ms total). Tap anywhere skips.
-- Reels arrive with a 280ms scale-in. Wrong pick: 600ms shake on the current reel + search, plus `playErrorSound`.
+- Reels arrive with a 280ms scale-in and leave (undo) with the same animation reversed. Wrong pick: 600ms shake on the current reel + search, plus `playErrorSound`.
 - Results slide up 300ms `cubic-bezier(.2,0,0,1)`.
 - Reveal: flips at 500 / 1500ms (500ms each), title at 2500ms, cards fade out at 4500ms (500ms), START_GAME at 5000ms.
 
@@ -269,6 +269,10 @@ Before ending any session:
 3. If any features are partially complete, describe what's left
 
 ## Current State
+_Updated by Claude — 2026-10-02 (Session 8, critique pass 1)_
+- **Branch `reel-line-critique`** (worktree `../six-degrees-critique`, off `reel-line`, not merged/pushed): `5963a29` bookend reels 88/42, phone gap fills stage, top-films hint = title row, reel exit on undo, stock order blue→red→green→amber, header casing; `81095b9` pending reel turn 2s (Marco's value). Tests 65/65, tsc clean, checked at 375 + 1440 in Playwright.
+- **Waiting on Marco:** label chop fix (recommended: a picked film hangs from below its actor's name); he hasn't played `reel-line` yet. Remaining critique items in `NEXT.md`.
+
 _Updated by Claude — 2026-09-27 (Session 7, relaunch step 4 phase 2: Reel Line build)_
 - **Built on branch `reel-line` (not merged, not deployed):** five commits `b10fe30` tokens → `39814b0` reels + hanging film → `c9f389c` results + share card → `2d075eb` accessibility → `00ab14b` onboarding line, reveal restyle, polish. Values approved by Marco 2026-09-27 (recorded in `NEXT.md`).
 - **Verified locally:** `npm test` 65/65, `npm run lint` 0 errors, `npm run build` clean, `npm run smoke -- http://localhost:3005` 19/19. Played in Playwright at 375 and 1440: Easy + Medium wins, wrong pick (shake + sound), undo (film falls back), hints, give up, Play Again, reduced motion, and one full round keyboard-only.
