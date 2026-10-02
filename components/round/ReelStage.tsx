@@ -139,7 +139,7 @@ export function ReelStage({ chain, target, targetReady, closing, pending, shakeC
     <div
       ref={outerRef}
       className="relative flex-1 min-h-0 overflow-auto scrollbar-hide"
-      style={{ "--clip-ms": `${M.clipOnMs}ms`, "--ready-ms": `${M.readyPulseMs}ms` } as React.CSSProperties}
+      style={{ "--clip-ms": `${M.clipOnMs}ms`, "--ready-ms": `${M.readyPulseMs}ms`, "--pending-turn-ms": `${M.pendingTurnMs}ms` } as React.CSSProperties}
     >
       <div ref={innerRef} className="relative">
         <canvas ref={canvasRef} className="absolute inset-0" aria-hidden="true" />

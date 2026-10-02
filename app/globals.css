@@ -177,9 +177,11 @@ body {
   border-radius: 50%;
   border: 2px solid var(--color-accent);
 }
-/* "Tap to connect" breathes; "checking" holds still (a dashed ring). */
+/* "Tap to connect" breathes; "checking" turns the reel (a dashed ring). */
 .reel.ready .reel-body::before { animation: reel-ready var(--ready-ms, 1200ms) ease-in-out infinite; }
 .reel.pending .reel-body::before { border-style: dashed; }
+.reel.pending svg { animation: reel-turn var(--pending-turn-ms, 2000ms) linear infinite; }
+@keyframes reel-turn { to { transform: rotate(360deg); } }
 @keyframes reel-ready {
   0%, 100% { opacity: 0.35; transform: scale(0.96); }
   50% { opacity: 1; transform: scale(1.04); }

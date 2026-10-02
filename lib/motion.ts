@@ -27,6 +27,7 @@ export const REEL_MOTION = {
   tautMs: 380, // every strip pulls taut, then relaxes
   settleMs: 900, // beat on the finished line before results
   readyPulseMs: 1200, // "tap to connect" ring on the target
+  pendingTurnMs: 2000, // one full turn of the current reel while a pick is checked (Marco, 2026-10-02)
   resultsSlideMs: 300, // results slide up
   resultsEasing: "cubic-bezier(0.2, 0, 0, 1)",
   shakeMs: 600, // wrong pick (Wordle's row shake)
