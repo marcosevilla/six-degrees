@@ -307,3 +307,41 @@ _Updated by Claude — 2026-09-25 (Session 6, relaunch step 3: core loop v2)_
   - HomeScreen simplified: pair-finding moved to RevealScreen, Play button always shows "Play"
 - **Modified files:** `app/globals.css`, `app/layout.tsx`, `app/play/page.tsx` (new), `app/api/tmdb/person/route.ts` (new), `components/Game.tsx`, `components/screens/HomeScreen.tsx`, `components/screens/RevealScreen.tsx` (new), `components/screens/ResultsScreen.tsx`, `components/round/ChainBuilder.tsx`, `components/round/ChainCard.tsx`, `components/round/SearchInput.tsx`, `components/round/SearchResults.tsx`, `lib/types.ts`, `lib/game-reducer.ts`, `lib/sounds.ts`, `lib/tmdb.ts`
 - **Open from this session:** RevealScreen slide-to-edges end positions are close but not pixel-perfect against PlayingScreen. `--color-text-secondary` fails WCAG AA contrast. Reveal-to-playing transition has a brief "pop" when the component switches (accepted by Marco as OK).
+
+## Working alongside the other agent
+
+Claude Code and Codex both work in this repo. These rules keep them from editing the same files at the same time.
+
+**Tasks live in Nimble**
+- Every code task is one Nimble task with exactly one owner label: `codex` or `claude`. Work only on tasks with your label. (`needs-claude` is a different label: Instinct handing Marco's errands to Claude. It does not mean code.)
+- Read a task: `dt --json task get <id>`. Its description holds Why, Touches, Acceptance and Out of scope.
+- No task, no work. If Marco asks for code work that has no task, create one first: `dt --json task create "<outcome>" --project <folder id> --labels <label id> --description "<template>"`.
+- When a NEXT.md line becomes a Nimble task, delete the line from NEXT.md in the same commit. A task lives in one place.
+- Codex never edits NEXT.md. Claude updates it.
+- `dt` talks to the Nimble app on Marco's Mac. If it returns `app_unreachable` or isn't found, stop and tell Marco; never track the task anywhere else.
+
+**Where you work**
+- Never edit the main checkout. Each task gets its own worktree and branch:
+  - Codex: `git worktree add ~/Developer/.worktrees/<repo>-<slug> -b codex/<slug> origin/main`
+  - Claude: `claude/<slug>` (the app's own worktree is fine)
+- Run `git fetch` first and branch from `origin/main`, never the local main.
+- Dev servers in a worktree use their own port (`--port 5199 --strictPort` or the repo's alternate).
+
+**Claimed files**
+- Each task's description has a `Touches:` line listing the paths it may change.
+- Before editing, list the other agent's open tasks and their Touches lines (swap in the other label's name):
+  `dt --json task list | jq -r --arg L "$(dt --json label list | jq -r '.data[]|select(.name=="claude").id')" '.data[]|select(.labels|index($L))|"\(.content) | \((.description//"")|split("\n")|map(select(test("^\\**Touches")))|first // "no Touches line")"'`
+- If a path overlaps, stop and add a dated line to your task's description. Do not edit around it.
+- Codex does not touch these unless the task names them: `NEXT.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.Codex/`, lockfiles, `.env*`, deploy and CI config, generated data files.
+
+**Done means**
+- Every command in the task's `Acceptance:` block passes locally, and the PR body pastes the result lines.
+- PR body starts with `Nimble: <task id>`, then: what changed, commands run with results, screenshots for anything visible.
+- Set the task to in progress when you start (`dt --json task status <id> in_progress`). When the PR is open, add a dated line with the PR link to the description. Don't complete the task: Claude completes it after Marco merges.
+- One PR per task, about 400 changed lines at most. Bigger: stop and propose a split in the task description.
+- Open the PR as a draft. Never merge, push to main, deploy, install, or run anything that touches real data (live DB, Drive, Stripe, email, iMessage).
+
+**Review**
+- Codex PRs: Claude reviews before Marco sees them.
+- Claude PRs that change logic, data or sync code: Codex reviews before Marco sees them. Design-only and docs-only PRs skip this.
+- No agent approves its own PR. Two review rounds at most, then it goes to Marco with the open points listed.
